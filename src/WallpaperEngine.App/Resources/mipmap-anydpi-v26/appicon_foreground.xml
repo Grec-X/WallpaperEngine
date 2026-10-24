@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 手机轮廓（白色描边，圆角，居中于安全区） -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineJoin="round"
+        android:pathData="M45,27 h18 a6,6 0 0 1 6,6 v42 a6,6 0 0 1 -6,6 h-18 a6,6 0 0 1 -6,-6 v-42 a6,6 0 0 1 6,-6 z" />
+
+    <!-- 底部指示条（手机细节） -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M50,73.5 h8 v1.8 h-8 z" />
+
+    <!-- 齿轮（青色，屏幕中央，视觉重心略偏上） -->
+    <!-- 直齿（十字 4 齿） -->
+    <path
+        android:fillColor="#40C4FF"
+        android:pathData="M52,39.5 h4 v4.5 h-4 z M52,56 h4 v4.5 h-4 z M43.5,48 h4.5 v4 h-4.5 z M56,48 h4.5 v4 h-4.5 z" />
+    <!-- 斜齿（45° 十字 4 齿） -->
+    <group
+        android:pivotX="54"
+        android:pivotY="50"
+        android:rotation="45">
+        <path
+            android:fillColor="#40C4FF"
+            android:pathData="M52,39.5 h4 v4.5 h-4 z M52,56 h4 v4.5 h-4 z M43.5,48 h4.5 v4 h-4.5 z M56,48 h4.5 v4 h-4.5 z" />
+    </group>
+    <!-- 齿轮主体圆 -->
+    <path
+        android:fillColor="#40C4FF"
+        android:pathData="M45.5,50 a8.5,8.5 0 1,0 17,0 a8.5,8.5 0 1,0 -17,0 z" />
+    <!-- 齿轮中心孔（透出背景色） -->
+    <path
+        android:fillColor="#161A22"
+        android:pathData="M50.4,50 a3.6,3.6 0 1,1 7.2,0 a3.6,3.6 0 1,1 -7.2,0 z" />
+</vector>

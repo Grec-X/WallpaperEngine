@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- ASCII 联接路径指向项目内 tools\AndroidSDK，规避 aapt2 非 ASCII 路径问题（见阶段二日志） -->
+    <AndroidSdkDirectory>G:\AndroidSDK</AndroidSdkDirectory>
+  </PropertyGroup>
+</Project>

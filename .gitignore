@@ -1,0 +1,41 @@
+# ===== 工具链（约 3GB，随构建文档重建，绝不入库）=====
+tools/
+
+# ===== 个人素材（不入库；克隆后请自备默认壁纸，见 README）=====
+素材/
+src/WallpaperEngine.App/Assets/default.mp4
+
+# ===== 调试探证残留（截图/UI dump/APK 取证等，不入库）=====
+docs/*.jpg
+docs/*.png
+docs/*.xml
+docs/*.apk
+
+# ===== 构建产物 =====
+bin/
+obj/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# ===== IDE =====
+.vs/
+.vscode/
+*.user
+*.suo
+
+# ===== 临时/日志 =====
+*.log
+build_out.txt
+build_rel.txt
+deploy_out.txt
+iplayer_dump.txt
+engine_dump.txt
+dump*.txt
+alltypes.txt
+*.tmp
+
+# ===== 系统杂物 =====
+Thumbs.db
+.DS_Store

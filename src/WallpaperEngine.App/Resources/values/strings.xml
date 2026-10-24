@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">壁纸引擎</string>
+    <string name="wallpaper_description">将本地视频设为循环播放的动态壁纸</string>
+</resources>

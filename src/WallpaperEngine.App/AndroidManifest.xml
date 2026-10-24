@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Application 级 label/icon：应用列表、系统搜索、桌面显示依赖；
+       缺省时 ColorOS 显示包名（曾致搜索"壁纸引擎"无结果） -->
+  <application android:label="壁纸引擎" android:icon="@mipmap/appicon" />
+</manifest>

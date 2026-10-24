@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0-android</TargetFramework>
+    <AndroidSdkDirectory>G:\AndroidSDK</AndroidSdkDirectory>
+    <SupportedOSPlatformVersion>26</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationId>com.wallpaperengine.app</ApplicationId>
+    <!-- Application 级 label/icon 由 AndroidManifest.xml 手写指定（csproj 属性传中文会编码损坏） -->
+    <ApplicationVersion>2</ApplicationVersion>
+    <ApplicationDisplayVersion>0.1.1</ApplicationDisplayVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\WallpaperEngine.Core\WallpaperEngine.Core.csproj" />
+    <ProjectReference Include="..\WallpaperEngine.Player\WallpaperEngine.Player.csproj" />
+  </ItemGroup>
+
+  <!-- Release ACW workaround: rewrite the illegally generated top-level
+       WallpaperService.Engine bridge into a legal inner class (see stage-4 log) -->
+  <Target Name="FixEngineAcw" AfterTargets="_GenerateJavaStubs" Condition="'$(Configuration)'=='Release'">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File fix-acw.ps1 &quot;$(IntermediateOutputPath)android\src\com\wallpaperengine\app&quot;" />
+  </Target>
+</Project>
