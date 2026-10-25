@@ -1,78 +1,112 @@
-# 手机壁纸引擎（Wallpaper Engine for Android）
+手机壁纸引擎
+把手机里的视频设成 Android 动态壁纸，循环播放。桌面和锁屏可以分开设置。
 
-将任意本地视频设为 Android 动态壁纸，无缝循环播放。C# / .NET 9 for Android + Media3 ExoPlayer。
+用 C# 写，.NET 9 for Android + Media3 ExoPlayer。
 
-> 🤖 本项目由 **Vibe Coding（AI 辅助编程）** 完成——人类负责产品决策、体验验收与真实场景测试，AI（ZCode × GLM）负责架构设计、编码与调试攻坚。全程协作记录见 `docs/日志/`。
+它做什么
+系统自带的壁纸设置只能放静态图，视频只能播一次。这个应用是一个完整的动态壁纸服务， 设成壁纸后视频会一直循环，熄屏自动停，亮屏接着放。
 
-## 功能
+桌面和锁屏可以各放各的：桌面一个视频、锁屏另一个，或者一边视频一边静态图。 两边的默认壁纸、音量、画面比例、循环区间都分开保存。
 
-- 🎬 **视频动态壁纸**：系统级 Live Wallpaper 服务，无缝循环播放（ExoPlayer 原生循环 + 保比例裁剪铺满）
-- 🖥 **桌面与锁屏分别设置**：两个位置各有独立的视频与默认壁纸。可以桌面放一个视频、锁屏放另一个，也可以一边视频一边图片
-- 🖼 **视频与图片**：视频循环播放；图片按静态壁纸提交给系统
-- ⚙ **播放设置**：音量、填充模式、循环区间，桌面与锁屏分别保存，切换编辑对象即可调整
-- 🕘 **壁纸库**（右上角 ☰）：
-  - **历史与收藏**：各容纳 25 个并显示当前数量，内容 MD5 去重，超限自动淘汰文件
-  - **桌面默认 / 锁屏默认**：长按设为各自位置的默认壁纸，缩略图标注类型；恢复默认时未设置则还原系统壁纸
-  - **收藏与删除**：长按标记收藏（豁免自动清理）或删除（连同文件与缩略图）
-- ⚡ **生命周期**：灭屏 / 锁屏 / 被遮挡时自动暂停，回到桌面自动恢复；重启自恢复；播放异常时状态条显示「播放异常」并自动回退
-- 🎨 **现代深色 UI**：双引擎状态条、双壁纸卡片（直读系统实际画面）、右侧设置抽屉（右滑关闭）、内置使用说明页
-- 📚 **工程文档**：技术方案 + 四阶段开发日志，记录每一轮决策、bug 根因与实测数据
-- 📦 **内置默认素材**：首次安装即有默认壁纸
+功能
+壁纸
 
-## 兼容性
+视频壁纸：循环播放，硬件解码，保持比例裁剪铺满
+图片壁纸：静态提交给系统
+桌面与锁屏独立设置，互不影响
+循环区间：只播视频的某一段
+播放设置
 
-- 双 ROM 真机验证：OPPO Reno6 Pro（ColorOS 13 / Android 13）、iQOO Neo 9（OriginOS 6 / Android 16）
-- Android 15+ 强制 edge-to-edge 已适配（系统栏 insets 处理）
-- **锁屏独立动态壁纸依赖 Android 14+ 框架能力**：OriginOS 6 实测可用；Android 13 及更早系统上锁屏跟随桌面，应用会提示
-- minSdk 26 / targetSdk 35
+音量、填充模式（裁剪 / 拉伸）、循环区间
+桌面和锁屏分别保存，切一下编辑对象就能改另一边
+壁纸库（右上角 ☰ 打开）
 
-## 项目结构
+历史和收藏各放 25 个，标题上显示当前数量
+内容去重：同一个视频选两次不会重复记录
+超过 25 个时自动淘汰最旧的，文件和缩略图一起清掉
+收藏的条目不会被自动清理
+桌面默认和锁屏默认分开设置，恢复时各回各的
+没有设置默认时，「恢复」按钮会把那个位置还原成系统原生壁纸
+其他
 
-```
+熄屏、锁屏、被别的应用完全盖住时自动暂停，回来接着放
+手机重启后壁纸自动恢复
+视频文件出错时自动回退到内置素材，状态条会标红提示「播放异常」
+深色界面，带使用说明页
+兼容性
+在两台真机上跑过完整流程：
+
+设备	系统	结果
+OPPO Reno6 Pro	ColorOS 13.1 / Android 13	通过
+iQOO Neo 9	OriginOS 6 / Android 16	通过
+minSdk 26（Android 8.0），targetSdk 35
+锁屏单独播视频需要 Android 14 以上的框架支持，并且厂商得开放这个能力。 OriginOS 6 实测可用；Android 13 及更早的系统上锁屏会跟随桌面，应用会给出提示。
+Android 15 之后系统强制全屏绘制，界面已做系统栏避让处理
+性能
+Reno6 Pro 实测，Release 构建（AOT 编译）：
+
+项目	数据
+壁纸服务常驻内存	77.7 MB
+连续循环	30 分钟 357 圈，零崩溃，内存无增长
+切换壁纸耗时	1~4 ms
+循环接缝	四种播放模式肉眼无差异，所以用最简单的原生循环
+Neo 9 上由于分辨率密度更高、素材更大，常驻内存约 105 MB。
+
+构建
+需要 .NET 9 SDK、Android workload、JDK 17、Android SDK（platform 35 + build-tools 35）。
+
+
+cmd
+build.cmd Debug      :: 构建
+build.cmd Release    :: AOT 构建（正式版）
+deploy.cmd Debug     :: 构建 + 安装到设备 + 启动
+Debug 版用 FastDev 增量部署，程序集不在 APK 里，所以安装或清数据之后必须用 deploy.cmd 重新部署，直接 adb install 会启动崩溃。日常使用请装 Release 版。
+
+仓库里没有内置素材文件（Assets/default.mp4）和开发工具链（约 3GB）。 首次构建前放一个 MP4 进去即可；不放也能运行，只是首次启动时没有默认壁纸， 自己选一个就行。
+
+项目结构
+
+text
 src/
-├── WallpaperEngine.Core/     配置与历史（纯 C#，JSON 持久化）
-├── WallpaperEngine.Player/   播放内核（IVideoLoopPlayer 抽象 + ExoPlayer/MediaPlayer 实现）
-└── WallpaperEngine.App/      管理界面 + VideoWallpaperService（壁纸服务）
-poc/                          阶段二验证工程（归档）
-docs/                         技术方案 + 各阶段日志（项目全程决策记录）
-tools/                        开发工具链（git 忽略，见下）
-素材/                         默认壁纸素材
-```
+├── WallpaperEngine.Core/     配置与历史记录（纯 C#，JSON 持久化）
+├── WallpaperEngine.Player/   播放内核（IVideoLoopPlayer 抽象，ExoPlayer / MediaPlayer 实现）
+└── WallpaperEngine.App/      壁纸服务 + 管理界面
+poc/                          早期验证工程，已归档
+docs/                         技术方案与开发日志
+踩过的坑
+记录在这里，省得别人再踩一遍。
 
-## 构建
+WallpaperService.Engine 在 Release 构建下无法编译
 
-> **自备默认素材**：出于版权考虑，个人素材视频不入库。克隆后请自行放置一个 MP4 到
-> `src/WallpaperEngine.App/Assets/default.mp4`（应用首次启动会将它作为默认壁纸）。
->
-> 本仓库自带全量开发工具链（.NET SDK、JDK、Android SDK 约 3GB），因体积原因不入库。
-> 首次构建请按 `docs/日志/阶段02_核心播放PoC_日志.md` 的环境章节重建工具链，或使用本机已装的 .NET Android 环境。
+Engine 是 Java 内部类，.NET Android 的 ACW 生成器在 Release 模式下会把它的子类 生成成顶层 Java 类，javac 报「需要包含封闭实体」。Debug 因为不生成这些桥接代码所以没事。
 
-```
-build.cmd [Debug|Release]     # 构建（Release 为 AOT，含 ACW 修复钩子，见下）
-deploy.cmd [Debug]            # 构建 + 安装到设备 + 启动
-```
+解决办法是构建后改写生成产物：fix-acw.ps1 在 _GenerateJavaStubs 之后把非法代码 改写成合法的内部类形式，同时把 static 成员挪进构造函数（内部类的 static 成员在 Java 16 以前不合法）。细节见 docs/日志/阶段04_管理应用与体验完善_日志.md 补记 5。
 
-- minSdk 26 / targetSdk 35，仅在 Android 真机测试（OPPO Reno6 Pro / ColorOS 13）
-- 日志观测：`adb logcat -s WESvc WESvc.Engine WEApp`
+中文项目路径让 aapt2 打包资源失败
 
-## 已知上游问题与规避
+路径里有中文时 aapt2 找不到 android.jar。项目里建了一个 ASCII 目录联接 G:\WE，构建脚本固定走这个路径。
 
-`WallpaperService.Engine`（Java 内部类）的子类在 .NET Android **Release** 构建中会被 ACW 生成器产出为非法 Java 源（顶层类继承内部类），javac 失败。本项目以构建后处理 `src/WallpaperEngine.App/fix-acw.ps1`（`FixEngineAcw` MSBuild target）改写生成产物绕过，详见 `docs/日志/阶段04_管理应用与体验完善_日志.md` 补记 5。
+ColorOS 的 WallpaperInfo 返回 null
 
-## 性能（真机实测）
+标准的 WallpaperManager.WallpaperInfo 在 ColorOS 13.1 上永远返回 null，即使壁纸确实 是动态壁纸。判断壁纸是否激活只能靠自己的引擎实例是否存活。
 
-| 指标 | OPPO Reno6 Pro（ColorOS 13） | iQOO Neo 9（OriginOS / Android 16） |
-|---|---|---|
-| 循环接缝 | 四模式无感知差异，30 分钟 357 圈精确循环 | ✅ |
-| 壁纸服务内存（Release/AOT） | PSS 77.7MB | PSS 105MB（高密度 + 高分辨率素材场景） |
-| 换视频热切换 | 控制延迟 1~4ms | ✅ |
-| 系统兼容 | 灭屏/锁屏/重启自恢复 ✅ | ✅（含 Android 15+ 强制 edge-to-edge 适配） |
+厂商确认页是 fire-and-forget
 
-## 关于本项目的 Vibe Coding 协作模式
+系统确认页不返回结果，也没有"范围"查询接口。所以无法靠"确认后读回系统状态"来决定 壁纸放到桌面还是锁屏——读到的只可能是上一次的状态。壁纸库里的三选菜单（桌面 / 锁屏 / 两者）才是可靠的方式。
 
-本项目从零到可用产品全程由人机对话完成，未手写一行代码：
+文档
+文件	内容
+docs/技术方案.md	架构设计、生命周期矩阵、循环策略对比、阶段规划
+docs/日志/阶段01_方案设计_日志.md	平台选型、技术栈决策
+docs/日志/阶段02_核心播放PoC_日志.md	播放内核验证、工具链搭建
+docs/日志/阶段03_壁纸服务集成_日志.md	壁纸服务实现、真机接入
+docs/日志/阶段04_管理应用与体验完善_日志.md	界面迭代、混合壁纸、双槽架构、bug 根因分析
+docs/发布说明_0.3.0.md	当前版本说明
+日志按阶段记录了每一轮决策和问题排查过程，包括几次失败的尝试和放弃的方案。 这些内容比最终代码更能说明这个项目是怎么走过来的。
 
-- **人类（产品负责人）**：需求定义、技术方案拍板、真机体验验收、产品决策（如砍掉与系统重复的功能）、暴露真实 bug 与体验反馈；
-- **AI（ZCode × GLM）**：技术方案撰写、全部编码、构建链搭建与攻坚（含绕过 .NET Android 上游 ACW 生成器 bug）、远程设备调试（adb 观测/日志取证/内存实测）、阶段日志沉淀。
+关于开发方式
+项目全程由人机对话完成，没有手写代码。
 
-`docs/日志/` 下的四份阶段日志完整保留了每一次决策、bug 根因分析与修复过程——包括三轮迭代式的激活状态检测修复、ColorOS 双引擎机制的发现、Release 构建工具链攻坚等，可作为 Vibe Coding 工程实践的完整案例阅读。
+人负责需求、技术选型、真机验收和产品判断——比如砍掉没有价值的锁屏静态帧功能、 决定不做静态壁纸、否掉基于猜测壁纸引擎身份的方案。AI（ZCode + GLM）负责方案撰写、 编码、构建链搭建，以及通过 adb 做远程调试和日志取证。
+
+docs/日志/ 里的记录保持了原样，包括 AI 会犯的错——有几处 bug 根因相同 （把配置记录当成系统实际状态），修了三次才发现规律。
