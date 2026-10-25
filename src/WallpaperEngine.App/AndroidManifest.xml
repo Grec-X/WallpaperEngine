@@ -3,4 +3,6 @@
   <!-- Application 级 label/icon：应用列表、系统搜索、桌面显示依赖；
        缺省时 ColorOS 显示包名（曾致搜索"壁纸引擎"无结果） -->
   <application android:label="壁纸引擎" android:icon="@mipmap/appicon" />
+  <!-- "恢复默认"未设置时还原系统壁纸（WallpaperManager.Clear）所需 -->
+  <uses-permission android:name="android.permission.SET_WALLPAPER" />
 </manifest>

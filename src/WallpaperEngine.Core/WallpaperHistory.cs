@@ -10,6 +10,8 @@ public class WallpaperHistoryEntry
     public string OriginalName { get; set; } = "";
     public long DurationMs { get; set; }
     public DateTime UsedAt { get; set; } = DateTime.Now;
+    /// <summary>用户收藏标记（豁免超限淘汰）</summary>
+    public bool IsFavorite { get; set; }
 }
 
 /// <summary>
@@ -49,8 +51,17 @@ public class WallpaperHistory
     public WallpaperHistoryEntry? Find(string id) =>
         Entries.FirstOrDefault(e => e.Id == id);
 
+    /// <summary>移除指定条目（不删文件，文件清理由调用方决策）。返回被移除的条目。</summary>
+    public WallpaperHistoryEntry? Remove(string id)
+    {
+        var entry = Find(id);
+        if (entry != null) Entries.Remove(entry);
+        return entry;
+    }
+
     /// <summary>
-    /// 记录一次使用：已存在则刷新时间与最新路径并置顶；否则插入头部，超限返回被淘汰的最旧项（调用方负责清理其文件）。
+    /// 记录一次使用：已存在则刷新时间与最新路径并置顶；否则插入头部。
+    /// 超限时淘汰最旧的非收藏条目（收藏豁免；全豁免时软性溢出不淘汰）。
     /// 不负责持久化——调用方随后 Save。
     /// </summary>
     public WallpaperHistoryEntry? Record(WallpaperHistoryEntry entry)
@@ -71,8 +82,16 @@ public class WallpaperHistory
         WallpaperHistoryEntry? evicted = null;
         if (Entries.Count > MaxEntries)
         {
-            evicted = Entries[^1];
-            Entries.RemoveAt(Entries.Count - 1);
+            for (int i = Entries.Count - 1; i >= 0; i--)
+            {
+                if (!Entries[i].IsFavorite)
+                {
+                    evicted = Entries[i];
+                    Entries.RemoveAt(i);
+                    break;
+                }
+            }
+            // 全部收藏时软性溢出：保留所有条目
         }
         return evicted;
     }

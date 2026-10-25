@@ -1,6 +1,7 @@
-using Android.App;
+﻿using Android.App;
 using Android.Content;
 using Android.Graphics;
+using Android.Graphics.Drawables;
 using Android.Media;
 using Android.OS;
 using Android.Provider;
@@ -29,7 +30,7 @@ public class MainActivity : Activity
     Button _pickButton = null!, _resetButton = null!;
     SeekBar _volumeBar = null!, _trimStartBar = null!, _trimEndBar = null!;
     Switch _coverSwitch = null!;
-    LinearLayout _sheetRow = null!, _sheetPanel = null!;
+    LinearLayout _sheetRow = null!, _sheetPanel = null!, _favRow = null!;
     FrameLayout _sheetOverlay = null!;
     View _sheetScrim = null!;
     TextView _historyToggleButton = null!;
@@ -148,7 +149,7 @@ public class MainActivity : Activity
         rowLp.SetMargins(Ui.Dp(this, 16), Ui.Dp(this, 2), Ui.Dp(this, 16), Ui.Dp(this, 6));
         buttonRow.LayoutParameters = rowLp;
 
-        _pickButton = Ui.PrimaryButton(this, "选择视频");
+        _pickButton = Ui.PrimaryButton(this, "选择壁纸");
         _pickButton.LayoutParameters = new LinearLayout.LayoutParams(0, Ui.Dp(this, 54), 1f);
         _pickButton.Click += (_, _) => PickVideo();
         buttonRow.AddView(_pickButton);
@@ -219,14 +220,15 @@ public class MainActivity : Activity
         _sheetScrim.Click += (_, _) => HideHistorySheet();
         _sheetOverlay.AddView(_sheetScrim, new FrameLayout.LayoutParams(-1, -1));
 
-        // 底部面板
+        // 右侧抽屉：设置中心，未来区块在此面板内从上到下扩展
         _sheetPanel = new LinearLayout(this) { Orientation = Orientation.Vertical };
         _sheetPanel.SetBackgroundDrawable(Ui.RoundBg(new Color(26, 29, 38), this, 24, Ui.CardStroke, 1));
-        _sheetPanel.SetPadding(Ui.Dp(this, 20), Ui.Dp(this, 16), Ui.Dp(this, 20), Ui.Dp(this, 32));
+        _sheetPanel.SetPadding(Ui.Dp(this, 20), Ui.Dp(this, 20), Ui.Dp(this, 16), Ui.Dp(this, 24));
+        _sheetPanel.SetOnTouchListener(new DrawerSwipeListener(_sheetPanel, HideHistorySheet));
 
         var titleRow = new LinearLayout(this) { Orientation = Orientation.Horizontal };
         titleRow.SetGravity(GravityFlags.CenterVertical);
-        var sheetTitle = Ui.Label(this, "历史壁纸");
+        var sheetTitle = Ui.Label(this, "设置");
         sheetTitle.LayoutParameters = new LinearLayout.LayoutParams(0, -2, 1f);
         titleRow.AddView(sheetTitle);
         var closeBtn = new TextView(this) { Text = "✕", TextSize = 16f, Gravity = GravityFlags.Center };
@@ -237,17 +239,44 @@ public class MainActivity : Activity
         titleRow.AddView(closeBtn);
         _sheetPanel.AddView(titleRow);
 
-        var caption = Ui.Caption(this, "点击切换 · 最多 10 个 · 重复设置不重复记录");
-        caption.SetPadding(0, Ui.Dp(this, 4), 0, Ui.Dp(this, 8));
-        _sheetPanel.AddView(caption);
+        var scroll = new ScrollView(this);
+        var content = new LinearLayout(this) { Orientation = Orientation.Vertical };
+        scroll.AddView(content);
+        _sheetPanel.AddView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
 
+        // —— 使用说明入口 ——
+        var guideRow = MakeMenuItemRow("使用说明", () => StartActivity(typeof(UserGuideActivity)));
+        content.AddView(guideRow);
+        content.AddView(MakeDivider());
+
+        // —— 收藏壁纸区块 ——
+        content.AddView(Ui.Label(this, "收藏"));
+        var favCaption = Ui.Caption(this, "长按历史中的壁纸可加入收藏");
+        favCaption.SetPadding(0, Ui.Dp(this, 4), 0, Ui.Dp(this, 8));
+        content.AddView(favCaption);
+        var favScroll = new HorizontalScrollView(this) { HorizontalScrollBarEnabled = false };
+        _favRow = new LinearLayout(this) { Orientation = Orientation.Horizontal };
+        _favRow.SetPadding(0, 0, 0, Ui.Dp(this, 8));
+        favScroll.AddView(_favRow);
+        content.AddView(favScroll);
+
+        // —— 历史壁纸区块 ——
+        var historyLabel = Ui.Label(this, "历史");
+        historyLabel.SetPadding(0, Ui.Dp(this, 8), 0, 0);
+        content.AddView(historyLabel);
+        var caption = Ui.Caption(this, "点击切换 · 长按更多操作 · 最多 10 个");
+        caption.SetPadding(0, Ui.Dp(this, 4), 0, Ui.Dp(this, 8));
+        content.AddView(caption);
         var hsv = new HorizontalScrollView(this) { HorizontalScrollBarEnabled = false };
         _sheetRow = new LinearLayout(this) { Orientation = Orientation.Horizontal };
         _sheetRow.SetPadding(0, 0, 0, Ui.Dp(this, 4));
         hsv.AddView(_sheetRow);
-        _sheetPanel.AddView(hsv);
+        content.AddView(hsv);
 
-        _sheetOverlay.AddView(_sheetPanel, new FrameLayout.LayoutParams(-1, -2, GravityFlags.Bottom));
+        // 抽屉宽度约 78% 屏宽，右侧贴边
+        int width = (int)(Resources!.DisplayMetrics!.WidthPixels * 0.78f);
+        var panelLp = new FrameLayout.LayoutParams(width, -1, GravityFlags.Right);
+        _sheetOverlay.AddView(_sheetPanel, panelLp);
         root.AddView(_sheetOverlay, new FrameLayout.LayoutParams(-1, -1));
     }
 
@@ -257,8 +286,8 @@ public class MainActivity : Activity
         _sheetOverlay.Visibility = ViewStates.Visible;
         _sheetScrim.Alpha = 0f;
         _sheetScrim.Animate().Alpha(1f).SetDuration(180).Start();
-        _sheetPanel.TranslationY = Ui.Dp(this, 480);
-        _sheetPanel.Animate().TranslationY(0f).SetDuration(240).Start();
+        _sheetPanel.TranslationX = _sheetPanel.Width > 0 ? _sheetPanel.Width : Resources!.DisplayMetrics!.WidthPixels;
+        _sheetPanel.Animate().TranslationX(0f).SetDuration(240).Start();
         _historyToggleButton.Text = "✕";
         _historyToggleButton.SetBackgroundDrawable(Ui.RoundBg(Ui.AccentDark, this, 12, Ui.Accent, 1));
     }
@@ -268,7 +297,7 @@ public class MainActivity : Activity
         if (_sheetOverlay.Visibility != ViewStates.Visible) return;
         _sheetScrim.Animate().Alpha(0f).SetDuration(180).Start();
         _sheetPanel.Animate()
-            .TranslationY(Ui.Dp(this, 480))
+            .TranslationX(_sheetPanel.Width > 0 ? _sheetPanel.Width : Resources!.DisplayMetrics!.WidthPixels)
             .SetDuration(220)
             .WithEndAction(new Java.Lang.Runnable(() => _sheetOverlay.Visibility = ViewStates.Gone))
             .Start();
@@ -308,8 +337,8 @@ public class MainActivity : Activity
         _statusText.Text =
             $"视频：{_cfg.OriginalName}\n" +
             $"时长：{FormatMs(_cfg.DurationMs)}   分辨率：{(_cfg.VideoWidth > 0 ? $"{_cfg.VideoWidth}x{_cfg.VideoHeight}" : "-")}\n" +
-            $"填充：{(_cfg.FillMode == "Stretch" ? "拉伸填满" : "保比例裁剪")}\n" +
-            $"音量：{(_cfg.Volume <= 0 ? "静音" : $"{_cfg.Volume:P0}")}\n" +
+            $"默认：{(string.IsNullOrEmpty(_cfg.DefaultVideoPath) ? "未设置（长按历史可设）" : _cfg.DefaultOriginalName)}\n" +
+            $"填充：{(_cfg.FillMode == "Stretch" ? "拉伸填满" : "保比例裁剪")}   音量：{(_cfg.Volume <= 0 ? "静音" : $"{_cfg.Volume:P0}")}\n" +
             $"循环：{FormatMs(_cfg.TrimStartMs)} → {(_cfg.TrimEndMs > 0 ? FormatMs(_cfg.TrimEndMs) : "片尾")}";
 
         _volumeBar.Progress = (int)(_cfg.Volume * 100);
@@ -391,23 +420,43 @@ public class MainActivity : Activity
     void RefreshHistoryUi()
     {
         _sheetRow.RemoveAllViews();
+        _favRow.RemoveAllViews();
         var history = WallpaperHistory.Load(FilesDir!.AbsolutePath);
+
+        string currentId = TryHashFile(_cfg.VideoPath);
+        string defaultId = TryHashFile(_cfg.DefaultVideoPath);
+
+        // 收藏区
+        var favorites = history.Entries.Where(e => e.IsFavorite).ToList();
+        if (favorites.Count == 0)
+        {
+            var favEmpty = Ui.Caption(this, "暂无收藏");
+            favEmpty.SetPadding(Ui.Dp(this, 4), Ui.Dp(this, 10), 0, Ui.Dp(this, 10));
+            _favRow.AddView(favEmpty);
+        }
+        else
+        {
+            foreach (var entry in favorites)
+            {
+                _favRow.AddView(MakeHistoryItem(entry, entry.Id == currentId, entry.Id == defaultId && entry.Id.Length > 0, true));
+            }
+        }
+
+        // 历史区
         if (history.Entries.Count == 0)
         {
             var empty = Ui.Caption(this, "暂无历史，选择视频后自动记录");
-            empty.SetPadding(Ui.Dp(this, 4), Ui.Dp(this, 24), 0, Ui.Dp(this, 24));
+            empty.SetPadding(Ui.Dp(this, 4), Ui.Dp(this, 10), 0, Ui.Dp(this, 10));
             _sheetRow.AddView(empty);
             return;
         }
-
-        string currentId = TryHashFile(_cfg.VideoPath);
         foreach (var entry in history.Entries)
         {
-            _sheetRow.AddView(MakeHistoryItem(entry, entry.Id == currentId));
+            _sheetRow.AddView(MakeHistoryItem(entry, entry.Id == currentId, entry.Id == defaultId && entry.Id.Length > 0, entry.IsFavorite));
         }
     }
 
-    View MakeHistoryItem(WallpaperHistoryEntry entry, bool isCurrent)
+    View MakeHistoryItem(WallpaperHistoryEntry entry, bool isCurrent, bool isDefault, bool isFavorite = false)
     {
         int w = Ui.Dp(this, 104), h = Ui.Dp(this, 185), radius = Ui.Dp(this, 14);
         var frame = new FrameLayout(this);
@@ -445,8 +494,246 @@ public class MainActivity : Activity
             frame.AddView(tag, new FrameLayout.LayoutParams(-1, Ui.Dp(this, 20), GravityFlags.Top));
         }
 
+        if (isDefault)
+        {
+            var defaultTag = new TextView(this) { Text = "默认", TextSize = 10f, Gravity = GravityFlags.Center };
+            defaultTag.SetTextColor(Color.Black);
+            defaultTag.SetBackgroundColor(Color.Argb(210, 255, 213, 79));
+            frame.AddView(defaultTag, new FrameLayout.LayoutParams(Ui.Dp(this, 44), Ui.Dp(this, 18), GravityFlags.Bottom | GravityFlags.Right));
+        }
+
+        if (isFavorite)
+        {
+            var favTag = new TextView(this) { Text = "收藏", TextSize = 10f, Gravity = GravityFlags.Center };
+            favTag.SetTextColor(Color.Black);
+            favTag.SetBackgroundColor(Color.Argb(210, 255, 213, 79));
+            frame.AddView(favTag, new FrameLayout.LayoutParams(Ui.Dp(this, 40), Ui.Dp(this, 18), GravityFlags.Top | GravityFlags.Left));
+        }
+
         frame.Click += (_, _) => ApplyHistoryEntry(entry);
+        frame.LongClick += (_, _) => ShowHistoryItemMenu(entry);
         return frame;
+    }
+
+    void ShowHistoryItemMenu(WallpaperHistoryEntry entry)
+    {
+        string name = string.IsNullOrEmpty(entry.OriginalName) ? "未命名视频" : entry.OriginalName;
+
+        // 深色底部菜单卡：与历史面板同一设计语言
+        var dialog = new Dialog(this);
+        dialog.RequestWindowFeature((int)WindowFeatures.NoTitle);
+
+        var wrapper = new FrameLayout(this);
+        wrapper.SetPadding(Ui.Dp(this, 16), 0, Ui.Dp(this, 16), Ui.Dp(this, 32));
+
+        var panel = new LinearLayout(this) { Orientation = Orientation.Vertical };
+        panel.SetBackgroundDrawable(Ui.RoundBg(new Color(26, 29, 38), this, 22, Ui.CardStroke, 1));
+        panel.SetPadding(0, Ui.Dp(this, 14), 0, Ui.Dp(this, 8));
+
+        var title = new TextView(this) { Text = name, TextSize = 15f };
+        title.SetTextColor(Ui.TextPrimary);
+        title.Typeface = Typeface.Create(Typeface.DefaultBold, TypefaceStyle.Bold);
+        title.SetSingleLine(true);
+        title.Ellipsize = TextUtils.TruncateAt.End!;
+        title.SetPadding(Ui.Dp(this, 20), 0, Ui.Dp(this, 20), Ui.Dp(this, 10));
+        panel.AddView(title);
+
+        panel.AddView(MakeMenuItem(dialog, "设为默认壁纸", Ui.Gold, () => SetAsDefault(entry)));
+        panel.AddView(MakeMenuItem(dialog, entry.IsFavorite ? "取消收藏" : "收藏", Ui.Accent, () => ToggleFavorite(entry)));
+        panel.AddView(MakeMenuItem(dialog, "从历史中删除", Ui.Destructive, () => ConfirmDeleteHistoryEntry(entry)));
+
+        wrapper.AddView(panel, new FrameLayout.LayoutParams(-1, -2));
+        dialog.SetContentView(wrapper);
+
+        var window = dialog.Window!;
+        window.SetBackgroundDrawable(new ColorDrawable(Color.Transparent));
+        window.SetGravity(GravityFlags.Bottom);
+        window.SetLayout(-1, -2);
+        dialog.Show();
+    }
+
+    /// <summary>设置抽屉内的一行菜单项（文字 + 右箭头）</summary>
+    View MakeMenuItemRow(string text, Action onClick)
+    {
+        var row = new LinearLayout(this) { Orientation = Orientation.Horizontal };
+        row.SetGravity(GravityFlags.CenterVertical);
+        row.SetPadding(Ui.Dp(this, 4), Ui.Dp(this, 13), Ui.Dp(this, 4), Ui.Dp(this, 13));
+
+        var label = new TextView(this) { Text = text, TextSize = 15f };
+        label.SetTextColor(Ui.TextPrimary);
+        label.LayoutParameters = new LinearLayout.LayoutParams(0, -2, 1f);
+        row.AddView(label);
+
+        var arrow = new TextView(this) { Text = "›", TextSize = 18f };
+        arrow.SetTextColor(Ui.TextSecondary);
+        row.AddView(arrow);
+
+        row.Click += (_, _) => onClick();
+        return row;
+    }
+
+    View MakeDivider()
+    {
+        var line = new View(this);
+        line.SetBackgroundColor(Ui.CardStroke);
+        line.LayoutParameters = new LinearLayout.LayoutParams(-1, 1);
+        return line;
+    }
+
+    View MakeMenuItem(Dialog dialog, string text, Color textColor, Action onClick)
+    {
+        var row = new LinearLayout(this) { Orientation = Orientation.Horizontal };
+        row.SetGravity(GravityFlags.CenterVertical);
+        row.SetPadding(Ui.Dp(this, 20), Ui.Dp(this, 13), Ui.Dp(this, 20), Ui.Dp(this, 13));
+
+        var label = new TextView(this) { Text = text, TextSize = 15f };
+        label.SetTextColor(textColor);
+        row.AddView(label);
+
+        row.Click += (_, _) =>
+        {
+            dialog.Dismiss();
+            onClick();
+        };
+        return row;
+    }
+
+    void ToggleFavorite(WallpaperHistoryEntry entry)
+    {
+        try
+        {
+            var history = WallpaperHistory.Load(FilesDir!.AbsolutePath);
+            var target = history.Find(entry.Id);
+            if (target == null) return;
+
+            target.IsFavorite = !target.IsFavorite;
+            history.Save(FilesDir!.AbsolutePath);
+            Log.Info(Tag, $"收藏标记: {entry.OriginalName} → {target.IsFavorite}");
+            RefreshUi();
+            Toast.MakeText(this, target.IsFavorite ? "已加入收藏" : "已取消收藏", ToastLength.Short)?.Show();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(Tag, $"收藏切换失败: {ex}");
+            Toast.MakeText(this, $"操作失败: {ex.Message}", ToastLength.Long)?.Show();
+        }
+    }
+
+    void SetAsDefault(WallpaperHistoryEntry entry)
+    {
+        try
+        {
+            if (!File.Exists(entry.VideoPath))
+            {
+                Toast.MakeText(this, "该视频文件已丢失", ToastLength.Short)?.Show();
+                return;
+            }
+            _cfg.DefaultVideoPath = entry.VideoPath;
+            _cfg.DefaultOriginalName = entry.OriginalName;
+            _cfg.Save(FilesDir!.AbsolutePath);
+            Log.Info(Tag, $"默认壁纸已设置: {entry.OriginalName}");
+            RefreshUi();
+            Toast.MakeText(this, $"已将「{entry.OriginalName}」设为默认壁纸", ToastLength.Short)?.Show();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(Tag, $"设置默认失败: {ex}");
+            Toast.MakeText(this, $"设置失败: {ex.Message}", ToastLength.Long)?.Show();
+        }
+    }
+
+    void ConfirmDeleteHistoryEntry(WallpaperHistoryEntry entry)
+    {
+        string name = string.IsNullOrEmpty(entry.OriginalName) ? "未命名视频" : entry.OriginalName;
+        ShowConfirmDialog("删除历史壁纸", $"从历史中删除「{name}」？\n对应的视频文件和缩略图也会被清理。", "删除", Ui.Destructive, () => DeleteHistoryEntry(entry));
+    }
+
+    /// <summary>深色风格确认对话框（与整体设计语言一致）</summary>
+    void ShowConfirmDialog(string title, string message, string okText, Color okColor, Action onOk)
+    {
+        var dialog = new Dialog(this);
+        dialog.RequestWindowFeature((int)WindowFeatures.NoTitle);
+
+        var wrapper = new FrameLayout(this);
+        wrapper.SetPadding(Ui.Dp(this, 24), 0, Ui.Dp(this, 24), 0);
+
+        var panel = new LinearLayout(this) { Orientation = Orientation.Vertical };
+        panel.SetBackgroundDrawable(Ui.RoundBg(new Color(26, 29, 38), this, 22, Ui.CardStroke, 1));
+        panel.SetPadding(Ui.Dp(this, 22), Ui.Dp(this, 18), Ui.Dp(this, 22), Ui.Dp(this, 16));
+
+        var titleView = new TextView(this) { Text = title, TextSize = 16f };
+        titleView.SetTextColor(Ui.TextPrimary);
+        titleView.Typeface = Typeface.Create(Typeface.DefaultBold, TypefaceStyle.Bold);
+        panel.AddView(titleView);
+
+        var msgView = new TextView(this) { Text = message, TextSize = 13.5f };
+        msgView.SetTextColor(Ui.TextSecondary);
+        msgView.SetPadding(0, Ui.Dp(this, 10), 0, Ui.Dp(this, 18));
+        panel.AddView(msgView);
+
+        var buttonRow = new LinearLayout(this) { Orientation = Orientation.Horizontal };
+        var cancel = Ui.SecondaryButton(this, "取消");
+        cancel.LayoutParameters = new LinearLayout.LayoutParams(0, Ui.Dp(this, 46), 1f);
+        cancel.Click += (_, _) => dialog.Dismiss();
+        buttonRow.AddView(cancel);
+
+        var gap = new View(this);
+        gap.LayoutParameters = new LinearLayout.LayoutParams(Ui.Dp(this, 10), 1);
+        buttonRow.AddView(gap);
+
+        var ok = Ui.PrimaryButton(this, okText);
+        ok.LayoutParameters = new LinearLayout.LayoutParams(0, Ui.Dp(this, 46), 1f);
+        ok.SetBackgroundDrawable(Ui.RoundBg(okColor, this, 16));
+        ok.Click += (_, _) =>
+        {
+            dialog.Dismiss();
+            onOk();
+        };
+        buttonRow.AddView(ok);
+        panel.AddView(buttonRow);
+
+        wrapper.AddView(panel, new FrameLayout.LayoutParams(-1, -2));
+        dialog.SetContentView(wrapper);
+
+        var window = dialog.Window!;
+        window.SetBackgroundDrawable(new ColorDrawable(Color.Transparent));
+        window.SetLayout(-1, -2);
+        dialog.Show();
+    }
+
+    void DeleteHistoryEntry(WallpaperHistoryEntry entry)
+    {
+        try
+        {
+            var cfg = WallpaperConfig.LoadOrDefault(FilesDir!.AbsolutePath);
+            if (entry.VideoPath == cfg.VideoPath)
+            {
+                Toast.MakeText(this, "正在使用中，请先切换到其他壁纸", ToastLength.Short)?.Show();
+                return;
+            }
+            if (entry.VideoPath == cfg.DefaultVideoPath)
+            {
+                Toast.MakeText(this, "默认壁纸不能删除，请先更换默认", ToastLength.Short)?.Show();
+                return;
+            }
+
+            var history = WallpaperHistory.Load(FilesDir!.AbsolutePath);
+            if (history.Remove(entry.Id) == null) return;
+
+            // 清理视频文件与缩略图（失败不阻断记录删除）
+            try { File.Delete(entry.VideoPath); } catch { /* 引擎可能仍在释放 */ }
+            try { File.Delete(System.IO.Path.Combine(FilesDir!.AbsolutePath, "thumbs", $"{entry.Id}.jpg")); } catch { }
+
+            history.Save(FilesDir!.AbsolutePath);
+            Log.Info(Tag, $"历史删除: {entry.OriginalName}");
+            RefreshUi();
+            Toast.MakeText(this, "已删除", ToastLength.Short)?.Show();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(Tag, $"历史删除失败: {ex}");
+            Toast.MakeText(this, $"删除失败: {ex.Message}", ToastLength.Long)?.Show();
+        }
     }
 
     void ApplyHistoryEntry(WallpaperHistoryEntry entry)
@@ -457,21 +744,18 @@ public class MainActivity : Activity
             return;
         }
 
-        // 保留全局音量/填充偏好，裁剪区间属于上个视频不沿用
         var (duration, width, height) = ReadVideoMetadata(entry.VideoPath);
-        _cfg = new WallpaperConfig
-        {
-            VideoPath = entry.VideoPath,
-            OriginalName = entry.OriginalName,
-            DurationMs = duration > 0 ? duration : entry.DurationMs,
-            VideoWidth = width,
-            VideoHeight = height,
-            Volume = _cfg.Volume,
-            FillMode = _cfg.FillMode,
-        };
+        long dur = duration > 0 ? duration : entry.DurationMs;
+
+        _cfg = WallpaperConfig.LoadOrDefault(FilesDir!.AbsolutePath);
+        _cfg.VideoPath = entry.VideoPath;
+        _cfg.OriginalName = entry.OriginalName;
+        _cfg.DurationMs = dur;
+        _cfg.VideoWidth = width;
+        _cfg.VideoHeight = height;
         _cfg.Save(FilesDir!.AbsolutePath);
 
-        RecordUsage(entry.VideoPath, entry.OriginalName, _cfg.DurationMs);
+        RecordUsage(entry.VideoPath, entry.OriginalName, dur);
         VideoWallpaperService.NotifyConfigChanged();
         NotifyChangedVideo();
         RefreshUi();
@@ -519,7 +803,7 @@ public class MainActivity : Activity
         {
             var cfg = WallpaperConfig.LoadOrDefault(FilesDir!.AbsolutePath);
             if (evicted.VideoPath == cfg.VideoPath) return;
-            if (System.IO.Path.GetFileName(evicted.VideoPath) == DefaultVideoName) return; // 默认素材永不删
+            if (evicted.VideoPath == cfg.DefaultVideoPath) return; // 用户默认不可被淘汰清理
             File.Delete(evicted.VideoPath);
             File.Delete(System.IO.Path.Combine(FilesDir!.AbsolutePath, "thumbs", $"{evicted.Id}.jpg"));
             Log.Info(Tag, $"历史淘汰并清理: {evicted.OriginalName}");
@@ -611,19 +895,15 @@ public class MainActivity : Activity
             string copiedPath = ImportVideo(sourceUri);
             var (duration, width, height) = ReadVideoMetadata(copiedPath);
             string name = sourceUri.LastPathSegment ?? "自定义视频";
-
             string finalPath = RecordUsage(copiedPath, name, duration);
-            _cfg = new WallpaperConfig
-            {
-                VideoPath = finalPath,
-                OriginalName = name,
-                DurationMs = duration,
-                VideoWidth = width,
-                VideoHeight = height,
-                Volume = _cfg.Volume,
-                FillMode = _cfg.FillMode,
-            };
-            _cfg.Save(FilesDir!.AbsolutePath);
+
+            _cfg = WallpaperConfig.LoadOrDefault(FilesDir!.AbsolutePath);
+            _cfg.VideoPath = finalPath;
+            _cfg.OriginalName = name;
+            _cfg.DurationMs = duration;
+            _cfg.VideoWidth = width;
+            _cfg.VideoHeight = height;
+            _cfg.Save(FilesDir.AbsolutePath);
 
             VideoWallpaperService.NotifyConfigChanged();
             NotifyChangedVideo();
@@ -701,33 +981,50 @@ public class MainActivity : Activity
         Log.Info(Tag, $"默认配置已生成: {path}");
     }
 
+    /// <summary>
+    /// 恢复默认（三层语义）：标记过默认→切换到该视频；
+    /// 未标记→还原系统原生壁纸（引擎退场）；标记失效（文件丢失）→同样还原系统壁纸。
+    /// </summary>
     void ResetToDefault()
     {
         try
         {
-            string path = GetDefaultVideoPath();
-            var (duration, width, height) = ReadVideoMetadata(path);
-            string finalPath = RecordUsage(path, "灰原哀（默认）", duration);
-
-            _cfg = new WallpaperConfig
+            bool hasDefault = !string.IsNullOrEmpty(_cfg.DefaultVideoPath) && File.Exists(_cfg.DefaultVideoPath);
+            if (hasDefault)
             {
-                VideoPath = finalPath,
-                OriginalName = "灰原哀（默认）",
-                DurationMs = duration,
-                VideoWidth = width,
-                VideoHeight = height,
-                Volume = _cfg.Volume,
-                FillMode = _cfg.FillMode,
-            };
-            _cfg.Save(FilesDir!.AbsolutePath);
-            VideoWallpaperService.NotifyConfigChanged();
-            NotifyChangedVideo();
+                if (_cfg.DefaultVideoPath == _cfg.VideoPath)
+                {
+                    Toast.MakeText(this, "当前已是默认壁纸", ToastLength.Short)?.Show();
+                    return;
+                }
+                var entry = new WallpaperHistoryEntry
+                {
+                    VideoPath = _cfg.DefaultVideoPath,
+                    OriginalName = _cfg.DefaultOriginalName,
+                };
+                ApplyHistoryEntry(entry); // 内部会弹应用范围选择
+                return;
+            }
+
+            // 未设置默认：还原系统原生壁纸
+            var wm = WallpaperManager.GetInstance(this)!;
+            if (Build.VERSION.SdkInt >= BuildVersionCodes.P)
+            {
+                wm.Clear(WallpaperManagerFlags.System);
+                wm.Clear(WallpaperManagerFlags.Lock);
+            }
+            else
+            {
+                wm.Clear();
+            }
+            Log.Info(Tag, "恢复默认：未设置用户默认，已还原系统壁纸");
+            Toast.MakeText(this, "已恢复系统壁纸（可在历史中长按设为默认）", ToastLength.Long)?.Show();
+            RefreshUi();
         }
         catch (Exception ex)
         {
             Log.Error(Tag, $"恢复默认失败: {ex}");
-            Toast.MakeText(this, $"恢复失败: {ex.Message}", ToastLength.Long)?.Show();
+            Toast.MakeText(this, $"恢复默认失败: {ex.Message}", ToastLength.Long)?.Show();
         }
-        RefreshUi();
     }
 }

@@ -22,6 +22,9 @@ public class WallpaperConfig
     public long TrimStartMs { get; set; }
     /// <summary>循环区间终点（毫秒），0=到片尾</summary>
     public long TrimEndMs { get; set; }
+    /// <summary>用户自定义的"默认壁纸"视频路径（空=未设置，恢复默认时还原系统壁纸）</summary>
+    public string DefaultVideoPath { get; set; } = "";
+    public string DefaultOriginalName { get; set; } = "";
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };

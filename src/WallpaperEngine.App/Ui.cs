@@ -36,6 +36,8 @@ static class Ui
     public static readonly Color OkDark = new(20, 96, 60);
     public static readonly Color Warn = new(214, 138, 26);
     public static readonly Color WarnDark = new(140, 84, 10);
+    public static readonly Color Gold = new(255, 213, 79);       // 默认标记（星）
+    public static readonly Color Destructive = new(232, 88, 88); // 删除/危险操作
 
     public static int Dp(Context c, int dp) => (int)(dp * c.Resources!.DisplayMetrics!.Density);
 
