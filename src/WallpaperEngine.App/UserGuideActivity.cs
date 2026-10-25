@@ -8,7 +8,7 @@ namespace WallpaperEngine.App;
 
 /// <summary>
 /// 使用说明独立页面：全屏深色，纵向滚动。
-/// 返回通道：右上角返回按钮 / 右滑手势（露出下层主界面）/ 系统返回键。
+/// 返回通道：右上角关闭按钮 / 右滑手势（露出下层主界面）/ 系统返回键。
 /// 窗口为半透明主题：滑动平移时露出的是主界面而非窗口底色。
 /// </summary>
 [Activity(Label = "使用说明", Theme = "@style/TransparentPageTheme")]
@@ -28,58 +28,32 @@ public class UserGuideActivity : Activity
         _content = new LinearLayout(this) { Orientation = Orientation.Vertical };
         _content.SetPadding(Ui.Dp(this, 24), Ui.Dp(this, 28), Ui.Dp(this, 24), Ui.Dp(this, 32));
 
-        // 标题行（页面标题 + 右侧返回按钮）
-        var titleRow = new LinearLayout(this) { Orientation = Orientation.Horizontal };
-        titleRow.SetGravity(GravityFlags.CenterVertical);
-
-        var title = new TextView(this) { Text = "使用说明", TextSize = 22f };
+        var title = new TextView(this) { Text = "使用说明", TextSize = 24f };
         title.SetTextColor(Ui.TextPrimary);
         title.Typeface = Typeface.Create(Typeface.DefaultBold, TypefaceStyle.Bold);
-        title.LayoutParameters = new LinearLayout.LayoutParams(0, -2, 1f);
-        titleRow.AddView(title);
-
-        var backBtn = new TextView(this) { Text = "✕", TextSize = 16f, Gravity = GravityFlags.Center };
-        backBtn.SetTextColor(Ui.TextSecondary);
-        backBtn.SetBackgroundDrawable(Ui.RoundBg(Ui.Card, this, 12, Ui.CardStroke, 1));
-        backBtn.LayoutParameters = new LinearLayout.LayoutParams(Ui.Dp(this, 42), Ui.Dp(this, 42));
-        backBtn.Click += (_, _) => Finish();
-        titleRow.AddView(backBtn);
-        _content.AddView(titleRow);
+        _content.AddView(title);
         _content.AddView(Spacer(8));
 
-        var subtitle = Ui.Caption(this, "视频动态壁纸 · 无缝循环播放");
+        var subtitle = Ui.Caption(this, "视频与图片 · 桌面与锁屏分别设置");
         _content.AddView(subtitle);
         _content.AddView(Spacer(22));
 
-        AddSection("快速开始",
-            "1. 点主界面上方的横幅 → 在系统页面中确认设为壁纸（可选桌面/锁屏/两者）；\n" +
-            "2. 点「选择壁纸」挑选本地视频，选完即自动应用；\n" +
-            "3. 回到桌面即可看到视频壁纸循环播放。");
-        AddSection("壁纸库（右上角 ☰）",
-            "· 收藏：长按任意壁纸 →「收藏」，精选视频常驻收藏区，不会被自动清理；\n" +
-            "· 历史：最近使用过的壁纸自动记录（最多 10 个，内容相同不重复）；\n" +
-            "· 切换：点击任意缩略图即可切换壁纸；\n" +
-            "· 更多操作：长按缩略图 → 设为默认壁纸 / 收藏 / 删除。");
-        AddSection("默认壁纸",
-            "长按历史壁纸设为「默认」后，「恢复默认」一键回到它；\n" +
-            "未设置默认时，点「恢复默认」会还原系统原生壁纸（引擎退出）。");
+        AddSection("基本用法",
+            "主界面的两张卡片分别对应桌面和锁屏。「选择桌面壁纸」「选择锁屏壁纸」从手机中挑视频或图片，选完立即生效：视频动态循环播放，图片为静态画面。");
+        AddSection("系统确认页",
+            "壁纸尚未激活（或所在位置是静态画面）时，应用会先打开系统确认页，在页面中确认即完成绑定。确认时可选择只设桌面、只设锁屏，或两者都设。");
+        AddSection("壁纸库",
+            "右上角 ☰ 打开。收藏与历史各容纳 25 个，标题标注当前数量。点击缩略图后选「设置为」：桌面壁纸、锁屏壁纸或两者。长按缩略图可设默认、收藏或删除；带 ★ 的是收藏。");
+        AddSection("桌面默认与锁屏默认",
+            "两个位置各有独立的默认壁纸。长按缩略图设为「桌面默认」「锁屏默认」，「恢复桌面默认」「恢复锁屏默认」随时回到各自默认。没有设置默认时，恢复会把该位置还原成系统壁纸。");
         AddSection("播放设置",
-            "· 音量：壁纸默认静音，可自行调整；\n" +
-            "· 保持比例裁剪铺满：关闭后画面拉伸变形（一般保持开启）；\n" +
-            "· 循环区间：裁掉片头片尾，只循环想要的片段。");
-        AddSection("省电说明",
-            "灭屏、锁屏、被其他应用完全遮挡时壁纸自动暂停，回到桌面自动恢复；\n" +
-            "视频解码使用硬件加速，壁纸常驻内存占用实测约 78MB。");
+            "卡片顶部的编辑对象开关决定当前设置的是桌面还是锁屏，音量、画面比例、循环区间分别保存、互不影响。某位置显示静态画面时，播放设置不适用。");
+        AddSection("耗电与暂停",
+            "熄屏、锁屏、被其他应用完全覆盖时自动暂停，回到桌面自动恢复。视频使用硬件解码，常驻内存约 78MB。");
 
+        // 挂载链：内容 → 滚动容器 → 根（曾遗漏导致页面空白，勿再删）
         scroll.AddView(_content);
-        root.AddView(scroll, new FrameLayout.LayoutParams(-1, -1));
-
-        // 右滑退出：滑动时页面平移 + 透明度渐暗（露出下层主界面，窗口本身半透明）
-        scroll.SetOnTouchListener(new BackSwipeListener(root, () =>
-        {
-            root.Animate().Alpha(0.25f).SetDuration(120).WithEndAction(new Java.Lang.Runnable(Finish)).Start();
-        }));
-
+        root.AddView(scroll);
         SetContentView(root);
     }
 

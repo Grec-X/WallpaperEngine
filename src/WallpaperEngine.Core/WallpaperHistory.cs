@@ -12,6 +12,8 @@ public class WallpaperHistoryEntry
     public DateTime UsedAt { get; set; } = DateTime.Now;
     /// <summary>用户收藏标记（豁免超限淘汰）</summary>
     public bool IsFavorite { get; set; }
+    /// <summary>媒体类型：Video（引擎动态）/ Image（静态提交）</summary>
+    public string MediaType { get; set; } = "Video";
 }
 
 /// <summary>
@@ -19,7 +21,7 @@ public class WallpaperHistoryEntry
 /// </summary>
 public class WallpaperHistory
 {
-    public const int MaxEntries = 10;
+    public const int MaxEntries = 25;
     public List<WallpaperHistoryEntry> Entries { get; set; } = new();
 
     public static string GetFilePath(string dir) => Path.Combine(dir, "wallpaper_history.json");

@@ -8,8 +8,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationId>com.wallpaperengine.app</ApplicationId>
     <!-- Application 级 label/icon 由 AndroidManifest.xml 手写指定（csproj 属性传中文会编码损坏） -->
-    <ApplicationVersion>2</ApplicationVersion>
-    <ApplicationDisplayVersion>0.1.1</ApplicationDisplayVersion>
+    <ApplicationVersion>4</ApplicationVersion>
+    <ApplicationDisplayVersion>0.3.0</ApplicationDisplayVersion>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\WallpaperEngine.Core\WallpaperEngine.Core.csproj" />

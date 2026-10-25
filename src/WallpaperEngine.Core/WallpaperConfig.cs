@@ -22,9 +22,34 @@ public class WallpaperConfig
     public long TrimStartMs { get; set; }
     /// <summary>循环区间终点（毫秒），0=到片尾</summary>
     public long TrimEndMs { get; set; }
-    /// <summary>用户自定义的"默认壁纸"视频路径（空=未设置，恢复默认时还原系统壁纸）</summary>
+    /// <summary>桌面槽的"默认壁纸"（空=未设置，恢复桌面默认时还原系统壁纸）</summary>
     public string DefaultVideoPath { get; set; } = "";
     public string DefaultOriginalName { get; set; } = "";
+    /// <summary>桌面默认的媒体类型（Video=引擎播放 / Image=静态提交）</summary>
+    public string DefaultMediaType { get; set; } = "Video";
+    /// <summary>锁屏槽的"默认壁纸"（空=未设置，恢复锁屏默认时还原系统壁纸）</summary>
+    public string LockDefaultVideoPath { get; set; } = "";
+    public string LockDefaultOriginalName { get; set; } = "";
+    /// <summary>最近提交的锁屏静态画面（跟踪显示用；空=锁屏跟随桌面）</summary>
+    public string LockFramePath { get; set; } = "";
+    public string LockFrameName { get; set; } = "";
+    /// <summary>最近提交的桌面静态图（跟踪显示用；非空=引擎已退出，桌面为静态）</summary>
+    public string DesktopStaticPath { get; set; } = "";
+    public string DesktopStaticName { get; set; } = "";
+    /// <summary>锁屏槽视频（Android 14+ 引擎按 WallpaperFlags 识别身份后读取；空=跟随桌面槽）</summary>
+    public string LockVideoPath { get; set; } = "";
+    public string LockOriginalName { get; set; } = "";
+    /// <summary>锁屏槽独立设置（音量/填充/裁剪/时长），与桌面槽互不影响</summary>
+    public float LockVolume { get; set; } = 0f;
+    public string LockFillMode { get; set; } = "Cover";
+    public long LockTrimStartMs { get; set; }
+    public long LockTrimEndMs { get; set; }
+    public long LockDurationMs { get; set; }
+    /// <summary>待应用视频：点击后暂存，经系统确认页确认后按实际绑定范围路由到对应槽（15 分钟过期）</summary>
+    public string PendingVideoPath { get; set; } = "";
+    public string PendingName { get; set; } = "";
+    public long PendingDurationMs { get; set; }
+    public DateTime PendingAt { get; set; } = DateTime.MinValue;
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };

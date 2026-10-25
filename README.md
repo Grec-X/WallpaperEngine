@@ -7,6 +7,7 @@
 ## 功能
 
 - 🎬 **视频动态壁纸**：系统级 Live Wallpaper 服务，桌面常驻无缝循环（ExoPlayer 原生循环 + Cover 保比例裁剪铺满）
+- 🖼 **混合壁纸体系**：视频与图片混搭——桌面视频循环 + 锁屏定格帧；或直接提交图片为锁屏/桌面静态壁纸（按设备能力自适应，异常明确提示）
 - 🔁 **循环区间裁剪**：选定视频任意片段循环（ClippingConfiguration）
 - 🔊 **音量 / 填充模式**：壁纸静音默认，Cover / Stretch 切换
 - 🕘 **壁纸库**（右上角 ☰）：
@@ -23,6 +24,7 @@
 
 - 双 ROM 真机验证：OPPO Reno6 Pro（ColorOS 13 / Android 13）、iQOO Neo 9（OriginOS / Android 16）
 - Android 15+ 强制 edge-to-edge 已适配（系统栏 insets 处理）
+- 混合壁纸能力因 ROM/框架版本而异（详见 `docs/日志/阶段04` 支持矩阵）：锁屏定格帧双机可用；"锁屏视频+桌面静态"需 Android 14+ 框架锁屏动态壁纸支持（OriginOS 6 验证可用）
 - minSdk 26 / targetSdk 35
 
 ## 项目结构

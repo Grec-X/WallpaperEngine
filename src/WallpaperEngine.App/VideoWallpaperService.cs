@@ -59,6 +59,28 @@ public class VideoWallpaperService : WallpaperService
     /// <summary>引擎上线/下线时触发，管理界面据此实时刷新状态</summary>
     public static event Action? EngineStateChanged;
 
+    /// <summary>当前活跃引擎的状态：目标槽 + 最近一次播放异常（null=正常）</summary>
+    public record EngineStatus(WallpaperManagerFlags Flags, string? Error);
+
+    /// <summary>当前活跃引擎的状态列表（去重按槽，保留异常信息）</summary>
+    public static List<EngineStatus> GetActiveEngineStatus()
+    {
+        lock (EnginesLock)
+        {
+            return _engines
+                .Select(e => new EngineStatus(e.CurrentFlags, e.LastError))
+                .GroupBy(s => s.Flags)
+                .Select(g => g.First())
+                .ToList();
+        }
+    }
+
+    /// <summary>当前活跃引擎的服务目标集合（兜底路径：getWallpaperInfo 不可用时据此路由待应用视频）</summary>
+    public static List<WallpaperManagerFlags> GetActiveEngineFlags()
+    {
+        return GetActiveEngineStatus().Select(s => s.Flags).ToList();
+    }
+
     static void RegisterEngine(VideoEngine engine)
     {
         lock (EnginesLock) _engines.Add(engine);
@@ -124,12 +146,14 @@ public class VideoWallpaperService : WallpaperService
             _player.Prepared += (_, _) =>
             {
                 _errorRetried = false;
+                LastError = null; // 播放恢复，清除异常状态
                 Log.Info(Tag, $"[{_player.Name}] Prepared 时长={_player.DurationMs}ms");
                 if (_wantPlaying) _player.Play();
             };
             _player.ErrorOccurred += (_, message) =>
             {
                 Log.Error(Tag, $"[{_player.Name}] {message}");
+                LastError = message; // 芯片显示"播放异常"（见 MainActivity）
                 // 源错误恢复：丢弃装载记录，1 秒后重试一次（ResolveVideoPath 会回退默认素材），防死循环
                 if (_errorRetried) return;
                 _errorRetried = true;
@@ -153,8 +177,6 @@ public class VideoWallpaperService : WallpaperService
             _player.SetScaleMode(IsCoverMode); // V1 默认 Cover：保持比例裁剪铺满，避免拉伸变形
             Log.Info(Tag, $"OnCreate 视频路径={_config.VideoPath}");
         }
-
-        bool IsCoverMode => !string.Equals(_config.FillMode, "Fit", StringComparison.OrdinalIgnoreCase);
 
         public override void OnSurfaceCreated(ISurfaceHolder holder)
         {
@@ -207,6 +229,14 @@ public class VideoWallpaperService : WallpaperService
             Log.Info(Tag, "OnDestroy（内核已释放）");
         }
 
+        public override void OnWallpaperFlagsChanged(WallpaperManagerFlags which)
+        {
+            base.OnWallpaperFlagsChanged(which);
+            Log.Info(Tag, $"OnWallpaperFlagsChanged → {which}（槽位重识别）");
+            _loadedPath = null; // 目标可能变化，重新按槽装载
+            if (_surfaceReady) EnsurePlayback();
+        }
+
         // ----- 配置重载（管理界面换视频后调用） -----
 
         public void ReloadFromConfig()
@@ -220,16 +250,25 @@ public class VideoWallpaperService : WallpaperService
         {
             _config = WallpaperConfig.LoadOrDefault(_service.FilesDir!.AbsolutePath);
             _player.SetScaleMode(IsCoverMode);
-            _player.SetVolume(_config.Volume); // 音量即改即生效，无需重装载
+            _player.SetVolume(SlotVolume); // 音量即改即生效，无需重装载
 
             // 裁剪区间变化需要重新装载源（ClippingConfiguration 在 SetDataSource 时应用）
-            if (_player.TrimStartMs != _config.TrimStartMs || _player.TrimEndMs != _config.TrimEndMs)
+            if (_player.TrimStartMs != SlotTrimStart || _player.TrimEndMs != SlotTrimEnd)
             {
-                _player.TrimStartMs = _config.TrimStartMs;
-                _player.TrimEndMs = _config.TrimEndMs;
+                _player.TrimStartMs = SlotTrimStart;
+                _player.TrimEndMs = SlotTrimEnd;
                 _loadedPath = null; // 强制下次 EnsurePlayback 重新装载
             }
         }
+
+        // ----- 按槽设置（引擎身份决定读桌面槽还是锁屏槽字段） -----
+
+        float SlotVolume => IsLockSlot ? _config.LockVolume : _config.Volume;
+        string SlotFillMode => IsLockSlot ? _config.LockFillMode : _config.FillMode;
+        long SlotTrimStart => IsLockSlot ? _config.LockTrimStartMs : _config.TrimStartMs;
+        long SlotTrimEnd => IsLockSlot ? _config.LockTrimEndMs : _config.TrimEndMs;
+
+        bool IsCoverMode => !string.Equals(SlotFillMode, "Stretch", StringComparison.OrdinalIgnoreCase);
 
         /// <summary>统一的播放保障：装载最新配置视频 → 必要时 Prepare → 可见即 Play</summary>
         void EnsurePlayback()
@@ -252,7 +291,7 @@ public class VideoWallpaperService : WallpaperService
             string path = ResolveVideoPath();
             if (string.IsNullOrEmpty(path))
             {
-                Log.Warn(Tag, $"无可播放视频（配置={_config.VideoPath}，默认也不存在）");
+                Log.Warn(Tag, $"无可播放视频（桌面槽={_config.VideoPath} 锁屏槽={_config.LockVideoPath}，默认也不存在）");
                 return false;
             }
             if (_loadedPath == path) return false; // 未变化不重载
@@ -261,16 +300,40 @@ public class VideoWallpaperService : WallpaperService
             _player.Reset();
             _player.SetDataSource(_service, Uri.FromFile(new Java.IO.File(path)));
             _player.SetVolume(_config.Volume);
-            Log.Info(Tag, $"已装载视频: {path}");
+            Log.Info(Tag, $"已装载视频[{(IsLockSlot ? "Lock" : "System")}]: {path}");
             return true;
         }
 
-        /// <summary>配置路径失效时回退默认素材（default.mp4 缺失则从 Assets 重新释放）</summary>
+        /// <summary>
+        /// 目标槽识别（官方 API）：Android 14+ 引擎经 WallpaperFlags 得知自己服务哪端，
+        /// 按槽读取对应视频（锁屏槽空则跟随桌面槽）；Android 13- 无此 API，回落桌面槽。
+        /// </summary>
+        public WallpaperManagerFlags CurrentFlags =>
+            Build.VERSION.SdkInt >= BuildVersionCodes.UpsideDownCake
+                ? WallpaperFlags
+                : WallpaperManagerFlags.System;
+
+        bool IsLockSlot => CurrentFlags == WallpaperManagerFlags.Lock;
+
+        /// <summary>本引擎最近一次播放异常（null=正常），供管理界面芯片显示"播放异常"</summary>
+        public string? LastError { get; private set; }
+
+        string SlotVideoPath()
+        {
+            if (IsLockSlot && !string.IsNullOrEmpty(_config.LockVideoPath))
+                return _config.LockVideoPath;
+            return _config.VideoPath;
+        }
+
+        /// <summary>槽路径失效或是非视频文件（如误写入的图片）时回退默认素材（default.mp4 缺失则从 Assets 重新释放）</summary>
         string ResolveVideoPath()
         {
-            if (File.Exists(_config.VideoPath)) return _config.VideoPath;
+            string slot = SlotVideoPath();
+            string ext = System.IO.Path.GetExtension(slot ?? "").ToLowerInvariant();
+            bool slotIsVideo = File.Exists(slot) && ext is not (".jpg" or ".jpeg" or ".png" or ".webp" or ".bmp" or ".gif");
+            if (slotIsVideo) return slot;
 
-            Log.Warn(Tag, $"配置视频不存在: {_config.VideoPath}，回退默认");
+            Log.Warn(Tag, $"槽视频无效[{(IsLockSlot ? "Lock" : "System")}]: {slot}，回退默认");
             var target = new Java.IO.File(new Java.IO.File(_service.FilesDir, "videos"), "default.mp4");
             if (!target.Exists())
             {

@@ -5,4 +5,7 @@
   <application android:label="壁纸引擎" android:icon="@mipmap/appicon" />
   <!-- "恢复默认"未设置时还原系统壁纸（WallpaperManager.Clear）所需 -->
   <uses-permission android:name="android.permission.SET_WALLPAPER" />
+  <!-- 双状态卡直读系统当前壁纸（GetWallpaperFile，Android 13+ 归入媒体权限组） -->
+  <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 </manifest>
