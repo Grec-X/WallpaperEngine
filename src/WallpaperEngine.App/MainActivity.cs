@@ -1535,20 +1535,31 @@ public class MainActivity : Activity
 
     // ---------- 默认素材 ----------
 
-    /// <summary>返回默认素材路径（不存在则从 Assets 重新释放），并读取元数据回填</summary>
-    string GetDefaultVideoPath()
+    /// <summary>
+    /// 返回内置素材路径（不存在则从 Assets 释放）。
+    /// 仓库不附带素材文件，缺失时返回 null，由调用方跳过而不是崩溃。
+    /// </summary>
+    string? GetDefaultVideoPath()
     {
-        var target = new Java.IO.File(new Java.IO.File(FilesDir, "videos"), DefaultVideoName);
-        if (!target.Exists())
+        try
         {
-            var videosDir = target.ParentFile!;
-            if (!videosDir.Exists()) videosDir.Mkdirs();
-            using var input = Assets!.Open(DefaultVideoName);
-            using var output = System.IO.File.Create(target.AbsolutePath);
-            input.CopyTo(output);
-            output.Flush();
+            var target = new Java.IO.File(new Java.IO.File(FilesDir, "videos"), DefaultVideoName);
+            if (!target.Exists())
+            {
+                var videosDir = target.ParentFile!;
+                if (!videosDir.Exists()) videosDir.Mkdirs();
+                using var input = Assets!.Open(DefaultVideoName);
+                using var output = System.IO.File.Create(target.AbsolutePath);
+                input.CopyTo(output);
+                output.Flush();
+            }
+            return target.AbsolutePath;
         }
-        return target.AbsolutePath;
+        catch (Exception ex)
+        {
+            Log.Warn(Tag, $"内置素材不可用（未随仓库分发则属正常）: {ex.Message}");
+            return null;
+        }
     }
 
     void EnsureDefaultVideo()
@@ -1556,9 +1567,11 @@ public class MainActivity : Activity
         var cfg = WallpaperConfig.LoadOrDefault(FilesDir!.AbsolutePath);
         if (!string.IsNullOrEmpty(cfg.VideoPath) && File.Exists(cfg.VideoPath)) return;
 
-        string path = GetDefaultVideoPath();
+        string? path = GetDefaultVideoPath();
+        if (path == null) return; // 无内置素材：保持空白，首次由用户自行选择壁纸
+
         var (duration, width, height) = ReadVideoMetadata(path);
-        new WallpaperConfig { VideoPath = path, OriginalName = "灰原哀（默认）", DurationMs = duration, VideoWidth = width, VideoHeight = height }
+        new WallpaperConfig { VideoPath = path, OriginalName = "内置素材", DurationMs = duration, VideoWidth = width, VideoHeight = height }
             .Save(FilesDir!.AbsolutePath);
         Log.Info(Tag, $"默认配置已生成: {path}");
     }
