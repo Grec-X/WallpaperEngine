@@ -1135,6 +1135,9 @@ public class MainActivity : Activity
         long dur = duration > 0 ? duration : entry.DurationMs;
         bool flagsApi = Build.VERSION.SdkInt >= BuildVersionCodes.UpsideDownCake;
 
+        // 缩略图路径：引擎冷启动时用它画占位帧，避免约 2 秒黑屏
+        string thumb = EnsureThumbPathFor(entry.VideoPath);
+
         _cfg = WallpaperConfig.LoadOrDefault(FilesDir!.AbsolutePath);
         switch (target)
         {
@@ -1144,11 +1147,13 @@ public class MainActivity : Activity
                 _cfg.DurationMs = dur;
                 _cfg.VideoWidth = width;
                 _cfg.VideoHeight = height;
+                _cfg.ThumbPath = thumb;
                 break;
             case VideoTarget.Lock:
                 _cfg.LockVideoPath = entry.VideoPath;
                 _cfg.LockOriginalName = entry.OriginalName;
                 _cfg.LockDurationMs = dur;
+                _cfg.LockThumbPath = thumb;
                 break;
             case VideoTarget.Both:
                 _cfg.VideoPath = entry.VideoPath;
@@ -1159,6 +1164,8 @@ public class MainActivity : Activity
                 _cfg.LockVideoPath = entry.VideoPath;
                 _cfg.LockOriginalName = entry.OriginalName;
                 _cfg.LockDurationMs = dur;
+                _cfg.ThumbPath = thumb;
+                _cfg.LockThumbPath = thumb;
                 break;
         }
         _cfg.Save(FilesDir!.AbsolutePath);
@@ -1345,6 +1352,24 @@ public class MainActivity : Activity
     {
         try { return path != null && File.Exists(path) ? HashFile(path) : ""; }
         catch { return ""; }
+    }
+
+    /// <summary>返回该媒体的缩略图绝对路径（缺失时生成），供引擎作占位帧</summary>
+    string EnsureThumbPathFor(string mediaPath)
+    {
+        try
+        {
+            string id = TryHashFile(mediaPath);
+            if (string.IsNullOrEmpty(id)) return "";
+            string path = System.IO.Path.Combine(FilesDir!.AbsolutePath, "thumbs", $"{id}.jpg");
+            if (!File.Exists(path)) GenerateThumbnail(mediaPath, id);
+            return File.Exists(path) ? path : "";
+        }
+        catch (Exception ex)
+        {
+            Log.Warn(Tag, $"占位缩略图准备失败: {ex.Message}");
+            return "";
+        }
     }
 
     void GenerateThumbnail(string mediaPath, string id)

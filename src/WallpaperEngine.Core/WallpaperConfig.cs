@@ -36,6 +36,10 @@ public class WallpaperConfig
     /// <summary>最近提交的桌面静态图（跟踪显示用；非空=引擎已退出，桌面为静态）</summary>
     public string DesktopStaticPath { get; set; } = "";
     public string DesktopStaticName { get; set; } = "";
+    /// <summary>桌面槽的缩略图路径（引擎冷启动时作占位帧，避免黑屏）</summary>
+    public string ThumbPath { get; set; } = "";
+    /// <summary>锁屏槽的缩略图路径（引擎冷启动时作占位帧，避免黑屏）</summary>
+    public string LockThumbPath { get; set; } = "";
     /// <summary>锁屏槽视频（Android 14+ 引擎按 WallpaperFlags 识别身份后读取；空=跟随桌面槽）</summary>
     public string LockVideoPath { get; set; } = "";
     public string LockOriginalName { get; set; } = "";
