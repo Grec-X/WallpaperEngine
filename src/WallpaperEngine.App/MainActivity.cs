@@ -436,8 +436,10 @@ public class MainActivity : Activity
         bool lockError = lockStatus?.Error != null;
         bool deskReady = deskStatus?.Ready == true;
         bool lockReady = lockStatus?.Ready == true;
-        bool deskHasStatic = TryGetActualWallpaperBitmap(WallpaperManagerFlags.System, out _);
-        bool lockHasStatic = TryGetActualWallpaperBitmap(WallpaperManagerFlags.Lock, out _);
+
+        // 系统壁纸只解码一次，芯片与卡片共用（每次解码是 native 分配，不可重复调用）
+        bool deskHasStatic = TryGetActualWallpaperBitmap(WallpaperManagerFlags.System, out var deskBmp);
+        bool lockHasStatic = TryGetActualWallpaperBitmap(WallpaperManagerFlags.Lock, out var lockBmp);
 
         SetChip(_deskChip, "桌面",
             deskLive && deskError ? "播放异常"
@@ -463,9 +465,8 @@ public class MainActivity : Activity
         bool engineRunning = VideoWallpaperService.IsEngineRunning;
         bool hasVideo = !string.IsNullOrEmpty(_cfg.VideoPath) && File.Exists(_cfg.VideoPath);
 
-        // 桌面卡
-        bool deskStatic = TryGetActualWallpaperBitmap(WallpaperManagerFlags.System, out var deskBmp);
-        if (deskStatic && deskBmp != null)
+        // 桌面卡（复用上面已解码的 deskBmp）
+        if (deskHasStatic && deskBmp != null)
         {
             _desktopThumb.SetImageBitmap(deskBmp);
             _desktopThumb.SetBackgroundColor(Color.Transparent);
@@ -486,9 +487,8 @@ public class MainActivity : Activity
             _desktopThumb.SetBackgroundColor(new Color(45, 49, 62));
         }
 
-        // 锁屏卡（锁屏槽动态时显示锁屏槽自己的视频）
-        bool lockStatic = TryGetActualWallpaperBitmap(WallpaperManagerFlags.Lock, out var lockBmp);
-        if (lockStatic && lockBmp != null)
+        // 锁屏卡（复用上面已解码的 lockBmp）
+        if (lockHasStatic && lockBmp != null)
         {
             _lockThumb.SetImageBitmap(lockBmp);
             _lockThumb.SetBackgroundColor(Color.Transparent);
@@ -531,7 +531,8 @@ public class MainActivity : Activity
         }
         _editSlotStatic = editSlotStatic;
         UpdateTrimPreview();
-        RefreshHistoryUi();
+        // 历史列表只在抽屉可见时重建，避免每次界面刷新都重建二十多个缩略图视图
+        if (_sheetOverlay.Visibility == ViewStates.Visible) RefreshHistoryUi();
     }
 
     /// <summary>状态芯片着色与文案</summary>
@@ -558,7 +559,11 @@ public class MainActivity : Activity
             var wm = WallpaperManager.GetInstance(this)!;
             using var pfd = wm.GetWallpaperFile(flag);
             if (pfd == null) return false;
-            bmp = BitmapFactory.DecodeFileDescriptor(pfd.FileDescriptor);
+
+            // 采样解码：系统壁纸原图可达 4800 宽（一张约 46MB），卡片只需几百像素。
+            // 不采样会让每次界面刷新吃掉几十 MB native 堆（曾观察到 400MB+）。
+            var opts = new BitmapFactory.Options { InSampleSize = 8 };
+            bmp = BitmapFactory.DecodeFileDescriptor(pfd.FileDescriptor, null, opts);
             return bmp != null;
         }
         catch (Exception ex)
@@ -566,6 +571,24 @@ public class MainActivity : Activity
             Log.Info(Tag, $"GetWallpaperFile({flag}) 不可用: {ex.Message}");
             return false;
         }
+    }
+
+    // 缩略图位图缓存：刷新界面时反复重建列表会重复解码，不缓存会造成 native 堆持续增长
+    static readonly Dictionary<string, Bitmap> _thumbBmpCache = new();
+
+    /// <summary>按文件路径取缩略图位图（带缓存，同一文件只解码一次）</summary>
+    static Bitmap? DecodeThumbCached(string path)
+    {
+        lock (_thumbBmpCache)
+        {
+            if (_thumbBmpCache.TryGetValue(path, out var cached)) return cached;
+        }
+        var bmp = BitmapFactory.DecodeFile(path);
+        if (bmp != null)
+        {
+            lock (_thumbBmpCache) { _thumbBmpCache[path] = bmp; }
+        }
+        return bmp;
     }
 
     /// <summary>卡片缩略图：取媒体 hash 对应的历史快照（缺失即时补生成）</summary>
@@ -579,7 +602,7 @@ public class MainActivity : Activity
             {
                 GenerateThumbnail(mediaPath, id);
             }
-            var bmp = File.Exists(thumbPath) ? BitmapFactory.DecodeFile(thumbPath) : null;
+            var bmp = File.Exists(thumbPath) ? DecodeThumbCached(thumbPath) : null;
             if (bmp != null) thumb.SetImageBitmap(bmp);
             else thumb.SetImageDrawable(null!);
             thumb.SetBackgroundColor(bmp != null ? Color.Transparent : new Color(45, 49, 62));
@@ -741,7 +764,7 @@ public class MainActivity : Activity
         var img = new ImageView(this);
         img.SetScaleType(ImageView.ScaleType.CenterCrop!);
         string thumbPath = System.IO.Path.Combine(FilesDir!.AbsolutePath, "thumbs", $"{entry.Id}.jpg");
-        var bmp = BitmapFactory.DecodeFile(thumbPath);
+        var bmp = File.Exists(thumbPath) ? DecodeThumbCached(thumbPath) : null;
         if (bmp != null) img.SetImageBitmap(bmp);
         else img.SetBackgroundColor(new Color(45, 49, 62));
         img.OutlineProvider = new RoundOutlineProvider(radius);
@@ -1415,11 +1438,20 @@ public class MainActivity : Activity
         }
         if (source == null) return;
 
-        int width = 240;
-        int height = Math.Max(1, source.Height * width / source.Width);
-        using Bitmap scaled = Bitmap.CreateScaledBitmap(source, width, height, true)!;
-        using var output = System.IO.File.Create(target.AbsolutePath);
-        scaled.Compress(Bitmap.CompressFormat.Jpeg!, 82, output);
+        try
+        {
+            int width = 240;
+            int height = Math.Max(1, source.Height * width / source.Width);
+            using Bitmap scaled = Bitmap.CreateScaledBitmap(source, width, height, true)!;
+            using var output = System.IO.File.Create(target.AbsolutePath);
+            scaled.Compress(Bitmap.CompressFormat.Jpeg!, 82, output);
+        }
+        finally
+        {
+            // 全尺寸帧（1080x2400 约 10MB）必须显式释放，否则每个媒体泄漏一份
+            source.Recycle();
+            source.Dispose();
+        }
     }
 
     // ---------- 设为壁纸 ----------
