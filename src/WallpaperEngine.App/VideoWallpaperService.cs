@@ -1,4 +1,4 @@
-using Android.App;
+﻿using Android.App;
 using Android.Content;
 using Android.Graphics;
 using Android.OS;
@@ -183,82 +183,12 @@ public class VideoWallpaperService : WallpaperService
             base.OnSurfaceCreated(holder);
             _surfaceReady = true;
             Log.Info(Tag, "OnSurfaceCreated");
-            // 抢先绘制占位帧：ExoPlayer 从初始化到首帧约 2 秒，期间 Surface 无内容会黑屏
-            DrawPlaceholder(holder.Surface);
+            // 注意：不可对 Surface 用 LockCanvas 画占位帧——会与 MediaCodec 争抢缓冲区，
+            // 导致解码器无法输出（实测表现为"播放异常 + 画面停在缩略图"）。
             LoadVideoIfChanged();
             _player.SetSurface(holder.Surface);
             _needPrepare = true; // 冷启动装载后必须准备
             EnsurePlayback();
-        }
-
-        /// <summary>
-        /// 在 Surface 上绘制缩略图作为占位（Cover 裁剪），视频首帧上屏后自然覆盖。
-        /// 必须在 SetSurface/Prepare 之前调用——MediaCodec 接管后再操作 Canvas 会冲突。
-        /// </summary>
-        void DrawPlaceholder(Surface surface)
-        {
-            string thumb = ResolvePlaceholderPath();
-            if (string.IsNullOrEmpty(thumb)) return;
-
-            try
-            {
-                using var bmp = BitmapFactory.DecodeFile(thumb);
-                if (bmp == null) return;
-
-                var canvas = surface.LockCanvas(null);
-                if (canvas == null) return;
-                try
-                {
-                    canvas.DrawColor(Android.Graphics.Color.Black);
-                    int sw = canvas.Width, sh = canvas.Height;
-                    float scale = Math.Max((float)sw / bmp.Width, (float)sh / bmp.Height);
-                    int dw = (int)(bmp.Width * scale), dh = (int)(bmp.Height * scale);
-                    var dst = new Rect((sw - dw) / 2, (sh - dh) / 2, (sw + dw) / 2, (sh + dh) / 2);
-                    canvas.DrawBitmap(bmp, null, dst, null);
-                }
-                finally
-                {
-                    surface.UnlockCanvasAndPost(canvas);
-                }
-                Log.Info(Tag, $"占位帧已绘制: {thumb}");
-            }
-            catch (Exception ex)
-            {
-                Log.Warn(Tag, $"占位帧绘制失败: {ex.Message}");
-            }
-        }
-
-        // 老配置没有 ThumbPath 字段，按视频内容 hash 推导缩略图路径（与 App 侧命名一致），结果缓存
-        static readonly Dictionary<string, string> _thumbCache = new();
-
-        string ResolvePlaceholderPath()
-        {
-            string configured = IsLockSlot ? _config.LockThumbPath : _config.ThumbPath;
-            if (!string.IsNullOrEmpty(configured) && File.Exists(configured)) return configured;
-
-            string video = SlotVideoPath();
-            if (string.IsNullOrEmpty(video) || !File.Exists(video)) return "";
-            lock (_thumbCache)
-            {
-                if (_thumbCache.TryGetValue(video, out var cached)) return cached;
-            }
-
-            string derived = "";
-            try
-            {
-                using var md5 = System.Security.Cryptography.MD5.Create();
-                using var fs = File.OpenRead(video);
-                string id = Convert.ToHexString(md5.ComputeHash(fs))[..16].ToLowerInvariant();
-                string path = System.IO.Path.Combine(_service.FilesDir!.AbsolutePath, "thumbs", $"{id}.jpg");
-                if (File.Exists(path)) derived = path;
-            }
-            catch (Exception ex)
-            {
-                Log.Warn(Tag, $"推导缩略图失败: {ex.Message}");
-            }
-
-            lock (_thumbCache) { _thumbCache[video] = derived; }
-            return derived;
         }
 
         public override void OnSurfaceChanged(ISurfaceHolder holder, Format format, int width, int height)
