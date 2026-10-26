@@ -426,21 +426,38 @@ public class MainActivity : Activity
 
     void RefreshUi()
     {
-        // —— 双引擎状态芯片：按槽直读系统实际状态（引擎身份 = 官方 WallpaperFlags；播放异常单独标示） ——
+        // —— 双引擎状态芯片：按槽直读系统实际状态（引擎身份 = 官方 WallpaperFlags） ——
         var engineStatus = VideoWallpaperService.GetActiveEngineStatus();
-        bool deskLive = engineStatus.Any(s => s.Flags == WallpaperManagerFlags.System);
-        bool lockLive = engineStatus.Any(s => s.Flags == WallpaperManagerFlags.Lock);
-        bool deskError = engineStatus.Any(s => s.Flags == WallpaperManagerFlags.System && s.Error != null);
-        bool lockError = engineStatus.Any(s => s.Flags == WallpaperManagerFlags.Lock && s.Error != null);
+        var deskStatus = engineStatus.FirstOrDefault(s => s.Flags == WallpaperManagerFlags.System);
+        var lockStatus = engineStatus.FirstOrDefault(s => s.Flags == WallpaperManagerFlags.Lock);
+        bool deskLive = deskStatus != null;
+        bool lockLive = lockStatus != null;
+        bool deskError = deskStatus?.Error != null;
+        bool lockError = lockStatus?.Error != null;
+        bool deskReady = deskStatus?.Ready == true;
+        bool lockReady = lockStatus?.Ready == true;
         bool deskHasStatic = TryGetActualWallpaperBitmap(WallpaperManagerFlags.System, out _);
         bool lockHasStatic = TryGetActualWallpaperBitmap(WallpaperManagerFlags.Lock, out _);
 
         SetChip(_deskChip, "桌面",
-            deskLive && deskError ? "播放异常" : deskLive ? "动态运行中" : deskHasStatic ? "静态壁纸" : "未设置",
-            deskLive && deskError ? Ui.Destructive : deskLive ? Ui.Ok : deskHasStatic ? new Color(52, 64, 92) : Ui.Warn);
+            deskLive && deskError ? "播放异常"
+            : deskLive && !deskReady ? "加载中"
+            : deskLive ? "动态运行中"
+            : deskHasStatic ? "静态壁纸" : "未设置",
+            deskLive && deskError ? Ui.Destructive
+            : deskLive && !deskReady ? Ui.Warn
+            : deskLive ? Ui.Ok
+            : deskHasStatic ? new Color(52, 64, 92) : Ui.Warn);
+
         SetChip(_lockChip, "锁屏",
-            lockLive && lockError ? "播放异常" : lockLive ? "动态运行中" : lockHasStatic ? "静态画面" : deskLive ? "跟随桌面" : "未设置",
-            lockLive && lockError ? Ui.Destructive : lockLive ? Ui.Ok : lockHasStatic ? new Color(52, 64, 92) : deskLive ? Ui.OkDark : Ui.Warn);
+            lockLive && lockError ? "播放异常"
+            : lockLive && !lockReady ? "加载中"
+            : lockLive ? "动态运行中"
+            : lockHasStatic ? "静态画面" : deskLive ? "跟随桌面" : "未设置",
+            lockLive && lockError ? Ui.Destructive
+            : lockLive && !lockReady ? Ui.Warn
+            : lockLive ? Ui.Ok
+            : lockHasStatic ? new Color(52, 64, 92) : deskLive ? Ui.OkDark : Ui.Warn);
 
         // —— 双状态卡：直读系统实际壁纸（GetWallpaperFile），静态槽缩略图用系统真实画面 ——
         bool engineRunning = VideoWallpaperService.IsEngineRunning;

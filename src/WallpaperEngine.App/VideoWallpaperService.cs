@@ -59,8 +59,8 @@ public class VideoWallpaperService : WallpaperService
     /// <summary>引擎上线/下线时触发，管理界面据此实时刷新状态</summary>
     public static event Action? EngineStateChanged;
 
-    /// <summary>当前活跃引擎的状态：目标槽 + 最近一次播放异常（null=正常）</summary>
-    public record EngineStatus(WallpaperManagerFlags Flags, string? Error);
+    /// <summary>当前活跃引擎的状态：目标槽 + 播放异常 + 是否已就绪（就绪=有可播放时长）</summary>
+    public record EngineStatus(WallpaperManagerFlags Flags, string? Error, bool Ready);
 
     /// <summary>当前活跃引擎的状态列表（去重按槽，保留异常信息）</summary>
     public static List<EngineStatus> GetActiveEngineStatus()
@@ -68,7 +68,7 @@ public class VideoWallpaperService : WallpaperService
         lock (EnginesLock)
         {
             return _engines
-                .Select(e => new EngineStatus(e.CurrentFlags, e.LastError))
+                .Select(e => new EngineStatus(e.CurrentFlags, e.LastError, e.IsReady))
                 .GroupBy(s => s.Flags)
                 .Select(g => g.First())
                 .ToList();
@@ -129,6 +129,7 @@ public class VideoWallpaperService : WallpaperService
         bool _wantPlaying = true;   // 壁纸语义：可见即播放
         bool _needPrepare;          // 装载了新源待 Prepare
         bool _errorRetried;         // 源错误重试只做一次（防死循环）
+        int _prepareRetries;        // 准备超时重试计数（最多 2 次）
 
         // JNI 重建构造（绑定要求；同时使 Release 的 Java 桥接正确生成）
         public VideoEngine(IntPtr javaReference, JniHandleOwnership transfer) : base(javaReference, transfer)
@@ -146,6 +147,7 @@ public class VideoWallpaperService : WallpaperService
             _player.Prepared += (_, _) =>
             {
                 _errorRetried = false;
+                _prepareRetries = 0;
                 LastError = null; // 播放恢复，清除异常状态
                 Log.Info(Tag, $"[{_player.Name}] Prepared 时长={_player.DurationMs}ms");
                 if (_wantPlaying) _player.Play();
@@ -281,11 +283,32 @@ public class VideoWallpaperService : WallpaperService
             {
                 _player.Prepare(); // 就绪后经 Prepared 事件按 _wantPlaying 自动 Play
                 _needPrepare = false;
+                StartPrepareWatchdog();
             }
             else if (_wantPlaying)
             {
                 _player.Play();
             }
+        }
+
+        /// <summary>
+        /// 准备看门狗：开机后系统负载极高、锁屏可见性频繁抖动时，ExoPlayer 可能长时间停不到 READY
+        /// （实测 MediaCodec 已 start 但 10 秒无 Prepared，画面停在空白）。超时后重新装载，最多两次。
+        /// </summary>
+        void StartPrepareWatchdog()
+        {
+            new Handler(Looper.MainLooper!).PostDelayed(() =>
+            {
+                if (_player.DurationMs > 0) return;      // 已就绪
+                if (_prepareRetries >= 2) return;        // 防死循环
+                if (!_surfaceReady) return;              // Surface 已销毁，等下次创建
+
+                _prepareRetries++;
+                Log.Warn(Tag, $"Prepare 超时，第 {_prepareRetries} 次重新装载");
+                _loadedPath = null;
+                _needPrepare = true;
+                EnsurePlayback();
+            }, 6000);
         }
 
         bool LoadVideoIfChanged()
@@ -326,6 +349,9 @@ public class VideoWallpaperService : WallpaperService
                 return _config.LockVideoPath;
             return _config.VideoPath;
         }
+
+        /// <summary>是否已就绪（能取到时长说明解码器准备好、视频可用）</summary>
+        public bool IsReady => _player.DurationMs > 0;
 
         /// <summary>槽路径失效或是非视频文件（如误写入的图片）时回退默认素材（default.mp4 缺失则从 Assets 重新释放）</summary>
         string ResolveVideoPath()
