@@ -468,8 +468,7 @@ public class MainActivity : Activity
         // 桌面卡（复用上面已解码的 deskBmp）
         if (deskHasStatic && deskBmp != null)
         {
-            _desktopThumb.SetImageBitmap(deskBmp);
-            _desktopThumb.SetBackgroundColor(Color.Transparent);
+            SetWallpaperThumb(_desktopThumb, deskBmp);
             _desktopNameText.Text = !string.IsNullOrEmpty(_cfg.DesktopStaticName) ? _cfg.DesktopStaticName : "静态壁纸";
             _desktopStatusText.Text = "静态图片（系统当前）";
         }
@@ -490,8 +489,7 @@ public class MainActivity : Activity
         // 锁屏卡（复用上面已解码的 lockBmp）
         if (lockHasStatic && lockBmp != null)
         {
-            _lockThumb.SetImageBitmap(lockBmp);
-            _lockThumb.SetBackgroundColor(Color.Transparent);
+            SetWallpaperThumb(_lockThumb, lockBmp);
             _lockNameText.Text = !string.IsNullOrEmpty(_cfg.LockFrameName) ? _cfg.LockFrameName : "静态画面";
             _lockStatusText.Text = "静态画面（系统当前）";
         }
@@ -560,9 +558,10 @@ public class MainActivity : Activity
             using var pfd = wm.GetWallpaperFile(flag);
             if (pfd == null) return false;
 
-            // 采样解码：系统壁纸原图可达 4800 宽（一张约 46MB），卡片只需几百像素。
-            // 不采样会让每次界面刷新吃掉几十 MB native 堆（曾观察到 400MB+）。
-            var opts = new BitmapFactory.Options { InSampleSize = 8 };
+            // 采样解码：系统壁纸原图可达 4800 宽（一张约 46MB）。
+            // 4 倍采样 = 1200 宽，卡片（约 400px，竖版裁切后更窄）够清晰；
+            // 采样过重（曾用 8 倍）会让缩略图发虚。旧帧由 SetWallpaperThumb 回收。
+            var opts = new BitmapFactory.Options { InSampleSize = 4 };
             bmp = BitmapFactory.DecodeFileDescriptor(pfd.FileDescriptor, null, opts);
             return bmp != null;
         }
@@ -575,6 +574,18 @@ public class MainActivity : Activity
 
     // 缩略图位图缓存：刷新界面时反复重建列表会重复解码，不缓存会造成 native 堆持续增长
     static readonly Dictionary<string, Bitmap> _thumbBmpCache = new();
+
+    /// <summary>
+    /// 设置系统壁纸直读的缩略图。这类 bitmap 每次刷新都会重新解码（壁纸可能被系统改动），
+    /// 因此替换时回收上一张，避免 native 堆累积。缓存中的缩略图不在此处理。
+    /// </summary>
+    void SetWallpaperThumb(ImageView iv, Bitmap bmp)
+    {
+        if (iv.Tag is Bitmap old && !ReferenceEquals(old, bmp) && !old.IsRecycled) old.Recycle();
+        iv.SetImageBitmap(bmp);
+        iv.Tag = bmp;
+        iv.SetBackgroundColor(Color.Transparent);
+    }
 
     /// <summary>按文件路径取缩略图位图（带缓存，同一文件只解码一次）</summary>
     static Bitmap? DecodeThumbCached(string path)
@@ -596,6 +607,10 @@ public class MainActivity : Activity
     {
         try
         {
+            // 从"系统壁纸直读"切到"媒体缩略图"时，回收上一张直读帧
+            if (thumb.Tag is Bitmap stale && !stale.IsRecycled) stale.Recycle();
+            thumb.Tag = null;
+
             string id = TryHashFile(mediaPath);
             string thumbPath = string.IsNullOrEmpty(id) ? "" : System.IO.Path.Combine(FilesDir!.AbsolutePath, "thumbs", $"{id}.jpg");
             if (!string.IsNullOrEmpty(id) && !File.Exists(thumbPath) && mediaPath != null)
