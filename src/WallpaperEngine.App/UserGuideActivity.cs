@@ -28,10 +28,24 @@ public class UserGuideActivity : Activity
         _content = new LinearLayout(this) { Orientation = Orientation.Vertical };
         _content.SetPadding(Ui.Dp(this, 24), Ui.Dp(this, 28), Ui.Dp(this, 24), Ui.Dp(this, 32));
 
+        // 标题行：标题 + 右侧关闭按钮
+        var titleRow = new LinearLayout(this) { Orientation = Orientation.Horizontal };
+        titleRow.SetGravity(GravityFlags.CenterVertical);
+
         var title = new TextView(this) { Text = "使用说明", TextSize = 24f };
         title.SetTextColor(Ui.TextPrimary);
         title.Typeface = Typeface.Create(Typeface.DefaultBold, TypefaceStyle.Bold);
-        _content.AddView(title);
+        title.LayoutParameters = new LinearLayout.LayoutParams(0, -2, 1f);
+        titleRow.AddView(title);
+
+        var closeBtn = new TextView(this) { Text = "✕", TextSize = 16f, Gravity = GravityFlags.Center };
+        closeBtn.SetTextColor(Ui.TextSecondary);
+        closeBtn.SetBackgroundDrawable(Ui.RoundBg(Ui.Card, this, 12, Ui.CardStroke, 1));
+        closeBtn.LayoutParameters = new LinearLayout.LayoutParams(Ui.Dp(this, 42), Ui.Dp(this, 42));
+        closeBtn.Click += (_, _) => Finish();
+        titleRow.AddView(closeBtn);
+
+        _content.AddView(titleRow);
         _content.AddView(Spacer(8));
 
         var subtitle = Ui.Caption(this, "视频与图片 · 桌面与锁屏分别设置");
@@ -54,6 +68,17 @@ public class UserGuideActivity : Activity
         // 挂载链：内容 → 滚动容器 → 根（曾遗漏导致页面空白，勿再删）
         scroll.AddView(_content);
         root.AddView(scroll);
+
+        // 右滑返回：整页跟手平移，松手超阈值淡出退出（半透明窗口下露出下层主界面）
+        scroll.SetOnTouchListener(new BackSwipeListener(root, () =>
+        {
+            root.Animate()
+                .Alpha(0.2f)
+                .SetDuration(120)
+                .WithEndAction(new Java.Lang.Runnable(Finish))
+                .Start();
+        }));
+
         SetContentView(root);
     }
 
