@@ -555,14 +555,30 @@ public class MainActivity : Activity
             if (CheckSelfPermission(perm) != Permission.Granted) return false; // 无权限：卡片回退记录模式
 
             var wm = WallpaperManager.GetInstance(this)!;
+
+            // 先读原图尺寸，再按显示需求算采样率。
+            // 固定倍数不可靠：4800 宽的图用 4 倍只剩 1200，而 1080 宽的图用 4 倍只剩 270，再放大就糊。
+            int rawW, rawH;
+            using (var probe = wm.GetWallpaperFile(flag))
+            {
+                if (probe == null) return false;
+                var bounds = new BitmapFactory.Options { InJustDecodeBounds = true };
+                BitmapFactory.DecodeFileDescriptor(probe.FileDescriptor, null, bounds);
+                rawW = bounds.OutWidth;
+                rawH = bounds.OutHeight;
+            }
+            if (rawW <= 0 || rawH <= 0) return false;
+
+            // 保证解码后长边不低于 1400px：卡片约 470x525，竖版裁切后仍需要足够像素
+            int maxDim = Math.Max(rawW, rawH);
+            int sample = 1;
+            while (maxDim / (sample * 2) >= 1400) sample *= 2;
+
             using var pfd = wm.GetWallpaperFile(flag);
             if (pfd == null) return false;
-
-            // 采样解码：系统壁纸原图可达 4800 宽（一张约 46MB）。
-            // 4 倍采样 = 1200 宽，卡片（约 400px，竖版裁切后更窄）够清晰；
-            // 采样过重（曾用 8 倍）会让缩略图发虚。旧帧由 SetWallpaperThumb 回收。
-            var opts = new BitmapFactory.Options { InSampleSize = 4 };
+            var opts = new BitmapFactory.Options { InSampleSize = sample };
             bmp = BitmapFactory.DecodeFileDescriptor(pfd.FileDescriptor, null, opts);
+            Log.Info(Tag, $"系统壁纸[{flag}] 原图 {rawW}x{rawH} 采样 {sample} → 解码 {bmp?.Width}x{bmp?.Height}");
             return bmp != null;
         }
         catch (Exception ex)
