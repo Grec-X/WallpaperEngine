@@ -556,8 +556,10 @@ public class MainActivity : Activity
 
             var wm = WallpaperManager.GetInstance(this)!;
 
-            // 先读原图尺寸，再按显示需求算采样率。
-            // 固定倍数不可靠：4800 宽的图用 4 倍只剩 1200，而 1080 宽的图用 4 倍只剩 270，再放大就糊。
+            // 先读原图尺寸，再按"控件显示宽度"算采样率。
+            // 关键：Android 的 ImageView 缩放是双线性，缩小超过 2 倍细线条就会糊
+            // （1440 宽的原图塞进 470px 的卡片，缩 3 倍就是这种情况）。
+            // 所以解码尺寸要贴近显示尺寸，而不是追求高分辨率。
             int rawW, rawH;
             using (var probe = wm.GetWallpaperFile(flag))
             {
@@ -569,16 +571,15 @@ public class MainActivity : Activity
             }
             if (rawW <= 0 || rawH <= 0) return false;
 
-            // 保证解码后长边不低于 1400px：卡片约 470x525，竖版裁切后仍需要足够像素
-            int maxDim = Math.Max(rawW, rawH);
+            int targetPx = DisplayWidthFor(flag);
             int sample = 1;
-            while (maxDim / (sample * 2) >= 1400) sample *= 2;
+            while (rawW / (sample * 2) >= targetPx) sample *= 2;
 
             using var pfd = wm.GetWallpaperFile(flag);
             if (pfd == null) return false;
             var opts = new BitmapFactory.Options { InSampleSize = sample };
             bmp = BitmapFactory.DecodeFileDescriptor(pfd.FileDescriptor, null, opts);
-            Log.Info(Tag, $"系统壁纸[{flag}] 原图 {rawW}x{rawH} 采样 {sample} → 解码 {bmp?.Width}x{bmp?.Height}");
+            Log.Info(Tag, $"系统壁纸[{flag}] 原图 {rawW}x{rawH} 目标宽 {targetPx} 采样 {sample} → {bmp?.Width}x{bmp?.Height}");
             return bmp != null;
         }
         catch (Exception ex)
@@ -586,6 +587,14 @@ public class MainActivity : Activity
             Log.Info(Tag, $"GetWallpaperFile({flag}) 不可用: {ex.Message}");
             return false;
         }
+    }
+
+    /// <summary>卡片缩略图的实际显示宽度（物理像素）；布局未完成时按屏幕宽度估算</summary>
+    int DisplayWidthFor(WallpaperManagerFlags flag)
+    {
+        var iv = flag == WallpaperManagerFlags.Lock ? _lockThumb : _desktopThumb;
+        if (iv != null && iv.Width > 0) return iv.Width;
+        return Math.Max(1, (int)(Resources!.DisplayMetrics!.WidthPixels * 0.45f));
     }
 
     // 缩略图位图缓存：刷新界面时反复重建列表会重复解码，不缓存会造成 native 堆持续增长
